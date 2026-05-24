@@ -1,0 +1,3 @@
+-keep class io.flutter.** { *; }
+-keep class com.vijaysimhareddy.activitytracker.** { *; }
+-dontwarn com.google.android.play.core.**

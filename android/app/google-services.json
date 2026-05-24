@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "741181781131",
+    "project_id": "activitytracker-7ba37",
+    "storage_bucket": "activitytracker-7ba37.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:741181781131:android:e419309f6f5002c1ca508e",
+        "android_client_info": {
+          "package_name": "com.vijaysimhareddy.activitytracker"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "741181781131-t65bhru7hv0a6tnlqdmdibid73ov5i8g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.vijaysimhareddy.activitytracker",
+            "certificate_hash": "d18bca2b53f226b1b4a6b4675d777f49ba54f033"
+          }
+        },
+        {
+          "client_id": "741181781131-6ggrlo3lvel5k2ihekp15c85ppn2dg5h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBr60IK-nOL_-C0UMSn1mq9s7N6gtOcH-c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "741181781131-6ggrlo3lvel5k2ihekp15c85ppn2dg5h.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
