@@ -2,6 +2,16 @@
 
 A full-featured Flutter fitness and lifestyle tracking app with 7 feature tabs, Firebase backend, and an AI-powered coach.
 
+## Screenshots
+
+<p float="left">
+  <img src="assets/screenshots/dashboard.png" width="18%" />
+  <img src="assets/screenshots/training.png" width="18%" />
+  <img src="assets/screenshots/diet.png" width="18%" />
+  <img src="assets/screenshots/habits.png" width="18%" />
+  <img src="assets/screenshots/goals.png" width="18%" />
+</p>
+
 ## Features
 
 | Tab | Description |
