@@ -1,110 +1,120 @@
 # Google Play Store Listing — Activity Tracker
 
+---
+
 ## Developer Info
 - **Developer Name:** Viral Systems
-- **Developer Email:** buntypeddi0@gmail.com
+- **Contact Email:** buntypeddi0@gmail.com
 - **Package:** com.vijaysimhareddy.activitytracker
+- **Privacy Policy:** https://pvijaysimhareddy.github.io/ActivityTrackerFlutter/privacy-policy.html
+- **Website:** https://pvijaysimhareddy.github.io/ActivityTrackerFlutter/
 
 ---
 
-## App Title (max 50 chars)
-Activity Tracker - Fitness & Life
+## App Title
+*(max 50 characters — 39 used)*
 
-## Short Description (max 80 chars)
-Track workouts, diet, habits, tasks & goals — your complete life dashboard.
-
----
-
-## Full Description (max 4000 chars)
-
-Take full control of your health, fitness, and daily life with **Activity Tracker by Viral Systems** — the all-in-one personal dashboard that keeps every part of your day on track.
-
-Whether you're hitting the gym, watching your macros, building better habits, or chasing long-term goals, Activity Tracker brings everything into one clean, fast, and easy-to-use app.
+```
+Activity Tracker – Fitness & Life Goals
+```
 
 ---
 
-### 🏋️ TRAINING LOG
-Log every workout in seconds. Choose from 6 workout types — Strength, Cardio, HIIT, Yoga, Sports, or Other. Track duration, add notes, and review your full training history. See today's total workout time at a glance.
+## Short Description
+*(max 80 characters — 73 used)*
 
-### 🥗 DIET & NUTRITION
-Log meals across Breakfast, Lunch, Dinner, and Snacks. Track the 4 key macros — Calories, Protein, Carbs, and Fat — for every food item. The Summary tab shows your daily totals with a big calorie display and per-meal breakdown so you always know where you stand.
-
-### 🔥 HABIT TRACKER
-Build the habits that change your life. Create custom habits with emojis, tap to mark them done each day, and watch your streak grow. A daily progress bar shows how many habits you've completed so you never lose momentum.
-
-### ✅ TASK MANAGER
-Stay on top of your day. Add tasks with High, Medium, or Low priority. Tap to complete them and delete what you don't need. Simple, distraction-free daily task management.
-
-### 🏆 GOALS
-Set meaningful goals across fitness, diet, work, finance, health, and personal life. Track progress with visual progress bars and update your current value with + / − counters. Celebrate when you hit 100% — you've earned it.
-
-### 📊 DASHBOARD
-Your personal command center. See at a glance how many tasks and habits you've completed, today's total calories, number of workouts, and your macro progress bars (Protein, Carbs, Fat vs. targets). Navigate between dates to review any day.
+```
+Track workouts, diet, habits & goals with your personal AI fitness coach.
+```
 
 ---
 
-### KEY FEATURES
-✔ 6 powerful tracking modules in one app
-✔ Google Sign-In — secure and instant login
-✔ Date navigation — review any past day
-✔ Pull-to-refresh on all screens
-✔ Clean, modern Material Design UI
-✔ Priority-based task management
-✔ Habit streaks to keep you consistent
-✔ Macro tracking with visual progress bars
-✔ Goal progress counters with +/− controls
-✔ Category-based goal system (fitness, diet, work, health, finance, personal)
+## Full Description
+*(max 4000 characters)*
 
----
+```
+Take full control of your health and lifestyle with Activity Tracker — the all-in-one app that brings your workouts, nutrition, habits, tasks, and goals into one clean, simple dashboard.
 
-**Activity Tracker** is built for people who are serious about self-improvement. No clutter, no fluff — just the tools you need to track what matters and make every day count.
+Whether you're trying to lose weight, build muscle, eat better, or just stay consistent with daily habits, Activity Tracker gives you the tools and the AI coaching to make it happen.
 
-Download free. Sign in with Google. Start tracking today.
+──────────────────────────
+🏋️ TRAINING LOG
+──────────────────────────
+Log every workout in seconds. Choose from Strength, Cardio, Yoga, HIIT, Sports, and more. Add duration and personal notes, then review your full history by date. Watch your weekly volume grow over time.
 
-*Developed by Viral Systems*
+──────────────────────────
+🥗 DIET & NUTRITION
+──────────────────────────
+Track every meal across Breakfast, Lunch, Dinner, and Snacks. Log calories, protein, carbs, and fat for each food item. The daily summary gives you a clear macro breakdown so you always know where you stand against your targets.
+
+──────────────────────────
+🔥 HABIT TRACKER
+──────────────────────────
+Build the habits that transform your life. Add any habit, track it daily, and watch your streaks grow. The visual progress bar keeps you motivated to stay consistent — day after day.
+
+──────────────────────────
+✅ TASK MANAGER
+──────────────────────────
+Stay organised with a built-in daily task list. Set priorities (High, Medium, Low), check off completed tasks, and plan your days with intention. All tasks are date-based so nothing falls through the cracks.
+
+──────────────────────────
+🏆 GOALS
+──────────────────────────
+Set meaningful goals across Fitness, Personal, and Finance categories. Track your progress with one tap, watch the progress bar fill up, and celebrate every milestone on the way to the finish line.
+
+──────────────────────────
+📊 SMART DASHBOARD
+──────────────────────────
+Your personalised daily overview — tasks done, habits completed, calories consumed, workouts logged, and macro progress bars — all in one glance. Navigate between any date to review past performance.
+
+──────────────────────────
+🤖 AI PERSONAL COACH
+──────────────────────────
+Get expert guidance from your built-in ISSA-certified AI coach. Ask anything — from workout plans and nutrition advice to overcoming plateaus and managing injuries. Download your personalised Workout Plan, Nutrition Plan, or Full Plan as a PDF anytime.
+
+──────────────────────────
+WHY ACTIVITY TRACKER?
+──────────────────────────
+✓ Everything in one app — no juggling five different tools
+✓ Clean, distraction-free design
+✓ Data synced to the cloud — access from any device
+✓ Sign in with Google, Facebook, or use as a guest
+✓ Personalised macro targets based on your body stats and goals
+✓ AI coach available 24/7
+
+Start your journey today. Your goals are closer than you think.
+```
 
 ---
 
 ## Category
-Health & Fitness
+`Health & Fitness`
 
-## Content Rating
-Everyone
+---
 
 ## Tags / Keywords
-fitness tracker, workout log, habit tracker, diet tracker, macro tracker, calorie counter, goal tracker, task manager, daily planner, health app, gym log, personal dashboard
+```
+fitness tracker, workout log, habit tracker, calorie counter, macro tracker,
+diet tracker, goal setting, AI coach, personal trainer, activity tracker,
+gym log, nutrition tracker, daily planner, health app, lifestyle tracker
+```
 
 ---
 
-## Privacy Policy
-You must provide a privacy policy URL. Use: https://www.privacypolicygenerator.info/
-(Generate one for free, host it on GitHub Pages or any free hosting)
-
-Minimum content to include:
-- We use Google Sign-In for authentication
-- We do not collect or sell personal data
-- Workout, diet, habit, and task data is stored on your own server
-- Contact: buntypeddi0@gmail.com
+## Content Rating
+`Everyone` — No violence, no mature content, no ads
 
 ---
 
-## Screenshots needed (minimum 2, recommended 8)
-Take screenshots of:
-1. Dashboard screen (with data)
-2. Training screen - workout type grid
-3. Habits screen - with streaks
-4. Diet screen - food log
-5. Goals screen - with progress bars
-6. Tasks screen
-7. Login screen
-8. Diet summary tab
+## Store Assets
 
-Screenshot sizes accepted by Play Store:
-- Phone: 1080 x 1920 px (portrait) minimum
-- Use an emulator or your physical phone
-
----
-
-## Store Assets Ready
-- App Icon (512x512): assets/icons/playstore_icon_512.png
-- Feature Graphic (1024x500): assets/icons/feature_graphic_1024x500.png
+| Asset | File | Size |
+|-------|------|------|
+| App Icon | `assets/icons/playstore_icon_512.png` | 512×512 px |
+| Feature Graphic | `assets/icons/feature_graphic_1024x500.png` | 1024×500 px |
+| Screenshot 1 – Dashboard | `assets/screenshots/dashboard.png` | 1080×2400 px |
+| Screenshot 2 – Training | `assets/screenshots/training.png` | 1080×2400 px |
+| Screenshot 3 – Diet | `assets/screenshots/diet.png` | 1080×2400 px |
+| Screenshot 4 – Habits | `assets/screenshots/habits.png` | 1080×2400 px |
+| Screenshot 5 – Goals | `assets/screenshots/goals.png` | 1080×2400 px |
+| Release AAB | `build/app/outputs/bundle/release/app-release.aab` | 57 MB |
