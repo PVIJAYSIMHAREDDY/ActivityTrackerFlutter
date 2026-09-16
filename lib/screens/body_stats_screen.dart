@@ -1,8 +1,11 @@
+import '../models/measurement_units.dart';
+import '../widgets/measurement_unit_selector.dart';
+import '../widgets/load_error.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/body_stats_model.dart';
-import '../services/coach_service.dart';
+import '../services/adaptive_plan_service.dart';
 import '../theme.dart';
 
 class BodyStatsScreen extends StatefulWidget {
@@ -17,9 +20,64 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
   late TabController _tabController;
   BodyStats _stats = BodyStats.defaults();
   bool _loading = true;
+  bool _loadFailed = false;
 
   // -- Tab 1: Profile form controllers
   final _heightCtrl = TextEditingController();
+  final _inchesCtrl = TextEditingController();
+  double _renderedHeightCm = 0, _renderedWeightKg = 0;
+  String _renderedHeight = '', _renderedInches = '', _renderedWeight = '';
+  MeasurementUnits get _units => _stats.units;
+  double? _readHeight() =>
+      _heightCtrl.text == _renderedHeight && _inchesCtrl.text == _renderedInches
+      ? _renderedHeightCm
+      : MeasurementUnits.parseHeight(
+          _heightCtrl.text,
+          _inchesCtrl.text,
+          _units.feetInches,
+        );
+  double? _readWeight() {
+    if (_weightCtrl.text == _renderedWeight) return _renderedWeightKg;
+    final value = double.tryParse(_weightCtrl.text.trim());
+    return value == null ? null : _units.weightKg(value);
+  }
+
+  void _renderMeasurements(double height, double weight) {
+    _renderedHeightCm = height;
+    _renderedWeightKg = weight;
+    final parts = MeasurementUnits.heightParts(height);
+    _heightCtrl.text = _units.feetInches
+        ? '${parts.$1}'
+        : height.toStringAsFixed(2);
+    _inchesCtrl.text = parts.$2.toStringAsFixed(2);
+    _weightCtrl.text = _units.weightValue(weight).toStringAsFixed(2);
+    _renderedHeight = _heightCtrl.text;
+    _renderedInches = _inchesCtrl.text;
+    _renderedWeight = _weightCtrl.text;
+  }
+
+  void _changeUnits(MeasurementUnits units) {
+    final height = _readHeight(), weight = _readWeight();
+    final logValue = double.tryParse(_logWeightCtrl.text.trim());
+    if (height == null ||
+        weight == null ||
+        !height.isFinite ||
+        !weight.isFinite ||
+        (_logWeightCtrl.text.trim().isNotEmpty &&
+            (logValue == null || !logValue.isFinite))) {
+      _showError('Enter valid measurements before switching units.');
+      return;
+    }
+    final logKg = logValue == null ? null : _units.weightKg(logValue);
+    setState(() {
+      _stats = _stats.copyWith(units: units);
+      _renderMeasurements(height, weight);
+      if (logKg != null) {
+        _logWeightCtrl.text = units.weightValue(logKg).toStringAsFixed(4);
+      }
+    });
+  }
+
   final _weightCtrl = TextEditingController();
   final _ageCtrl = TextEditingController();
   final _bfCtrl = TextEditingController();
@@ -41,6 +99,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
   void dispose() {
     _tabController.dispose();
     _heightCtrl.dispose();
+    _inchesCtrl.dispose();
     _weightCtrl.dispose();
     _ageCtrl.dispose();
     _bfCtrl.dispose();
@@ -50,41 +109,64 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
   }
 
   Future<void> _loadStats() async {
-    final loaded = await BodyStats.load();
-    final stats = loaded ?? BodyStats.defaults();
     if (!mounted) return;
     setState(() {
-      _stats = stats;
-      _loading = false;
-      _populateControllers(stats);
+      _loading = true;
+      _loadFailed = false;
     });
+    try {
+      final loaded = await BodyStats.load();
+      final stats = loaded ?? BodyStats.defaults();
+      if (!mounted) return;
+      setState(() {
+        _stats = stats;
+        _loading = false;
+        _populateControllers(stats);
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadFailed = true;
+        });
+      }
+    }
   }
 
   void _populateControllers(BodyStats stats) {
-    _heightCtrl.text = stats.heightCm == 0 ? '' : stats.heightCm.toStringAsFixed(1);
-    _weightCtrl.text = stats.weightKg == 0 ? '' : stats.weightKg.toStringAsFixed(1);
+    _renderMeasurements(stats.heightCm, stats.weightKg);
     _ageCtrl.text = stats.age == 0 ? '' : stats.age.toString();
-    _bfCtrl.text = stats.bodyFatPercent == 0 ? '' : stats.bodyFatPercent.toStringAsFixed(1);
+    _bfCtrl.text = stats.bodyFatPercent == 0
+        ? ''
+        : stats.bodyFatPercent.toStringAsFixed(1);
     _phoneCtrl.text = stats.phoneNumber;
   }
 
   Future<void> _saveProfile() async {
-    final height = double.tryParse(_heightCtrl.text.trim());
-    final weight = double.tryParse(_weightCtrl.text.trim());
+    final height = _readHeight();
+    final weight = _readWeight();
     final age = int.tryParse(_ageCtrl.text.trim());
-    if (height == null || height <= 0) {
-      _showError('Please enter a valid height.');
+    if (height == null || !height.isFinite || height < 100 || height > 250) {
+      _showError(
+        'Enter a valid height from ${_units.height(100)} to ${_units.height(250)}. Inches must be below 12.',
+      );
       return;
     }
-    if (weight == null || weight <= 0) {
-      _showError('Please enter a valid weight.');
+    if (weight == null || !weight.isFinite || weight < 25 || weight > 400) {
+      _showError(
+        'Enter weight from ${_units.weight(25)} to ${_units.weight(400)}.',
+      );
       return;
     }
-    if (age == null || age <= 0 || age > 120) {
-      _showError('Please enter a valid age.');
+    if (age == null || age < 18 || age > 120) {
+      _showError('This app is for adults aged 18 and over.');
       return;
     }
     final bf = double.tryParse(_bfCtrl.text.trim()) ?? 0.0;
+    if (!bf.isFinite || bf < 0 || bf > 75) {
+      _showError('Enter a body fat percentage from 0 to 75.');
+      return;
+    }
     setState(() => _saving = true);
 
     final updated = _stats.copyWith(
@@ -94,7 +176,20 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
       bodyFatPercent: bf,
       phoneNumber: _phoneCtrl.text.trim(),
     );
-    await updated.save();
+    try {
+      await updated.save();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _addingWeight = false;
+        });
+      }
+      _showError(
+        'Your changes could not be saved. Check your connection and retry.',
+      );
+      return;
+    }
     if (mounted) {
       setState(() {
         _stats = updated;
@@ -110,9 +205,14 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
   }
 
   Future<void> _addWeightEntry() async {
-    final weight = double.tryParse(_logWeightCtrl.text.trim());
-    if (weight == null || weight <= 0) {
-      _showError('Please enter a valid weight.');
+    final enteredWeight = double.tryParse(_logWeightCtrl.text.trim());
+    final weight = enteredWeight == null
+        ? null
+        : _units.weightKg(enteredWeight);
+    if (weight == null || !weight.isFinite || weight < 25 || weight > 400) {
+      _showError(
+        'Enter weight from ${_units.weight(25)} to ${_units.weight(400)}.',
+      );
       return;
     }
     setState(() => _addingWeight = true);
@@ -127,16 +227,26 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
         ? updatedHistory.sublist(updatedHistory.length - 52)
         : updatedHistory;
 
-    final updated = _stats.copyWith(
-      weightKg: weight,
-      weightHistory: trimmed,
-    );
-    await updated.save();
+    final updated = _stats.copyWith(weightKg: weight, weightHistory: trimmed);
+    try {
+      await updated.save();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _addingWeight = false;
+        });
+      }
+      _showError(
+        'Your changes could not be saved. Check your connection and retry.',
+      );
+      return;
+    }
     if (mounted) {
       setState(() {
         _stats = updated;
         _logWeightCtrl.clear();
-        _weightCtrl.text = weight.toStringAsFixed(1);
+        _renderMeasurements(_renderedHeightCm, weight);
         _addingWeight = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,6 +271,12 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_loadFailed) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Body Profile')),
+        body: LoadError(onRetry: _loadStats),
+      );
+    }
     if (_loading) {
       return const Scaffold(
         backgroundColor: AppColors.bg,
@@ -179,8 +295,10 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
               indicatorColor: Colors.white,
               labelColor: Colors.white,
               unselectedLabelColor: const Color(0xFF8BA3BE),
-              labelStyle:
-                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
               tabs: const [
                 Tab(text: 'Body Profile'),
                 Tab(text: 'Weight Log'),
@@ -213,30 +331,72 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          MeasurementUnitSelector(
+            units: _units,
+            onChanged: _saving || _addingWeight ? null : _changeUnits,
+          ),
+          const SizedBox(height: 20),
           _sectionTitle('Basic Measurements'),
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: _labeledField(
-                  label: 'Height (cm)',
-                  child: TextField(
-                    controller: _heightCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(hintText: 'e.g. 175'),
-                  ),
+                  label: _units.feetInches ? 'Height (ft / in)' : 'Height (cm)',
+                  child: _units.feetInches
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                key: const ValueKey('height-feet'),
+                                controller: _heightCtrl,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  suffixText: 'ft',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: TextField(
+                                key: const ValueKey('height-inches'),
+                                controller: _inchesCtrl,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  suffixText: 'in',
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : TextField(
+                          key: const ValueKey('height-cm'),
+                          controller: _heightCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'e.g. 175',
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _labeledField(
-                  label: 'Weight (kg)',
+                  label: 'Weight (${_units.weightUnit})',
                   child: TextField(
+                    key: const ValueKey('body-weight'),
                     controller: _weightCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(hintText: 'e.g. 75.0'),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: _units.pounds ? 'e.g. 165.3' : 'e.g. 75.0',
+                    ),
                   ),
                 ),
               ),
@@ -261,8 +421,9 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                   label: 'Body Fat % (optional)',
                   child: TextField(
                     controller: _bfCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: const InputDecoration(hintText: '? if unknown'),
                   ),
                 ),
@@ -314,11 +475,17 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2),
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
-                  : const Text('Save Profile',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  : const Text(
+                      'Save Profile',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
           ),
 
@@ -348,8 +515,11 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon,
-                  color: selected ? Colors.white : AppColors.muted, size: 20),
+              Icon(
+                icon,
+                color: selected ? Colors.white : AppColors.muted,
+                size: 20,
+              ),
               const SizedBox(width: 6),
               Text(
                 label,
@@ -408,8 +578,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
               setState(() => _stats = _stats.copyWith(activityLevel: value)),
           child: Container(
             margin: const EdgeInsets.only(bottom: 8),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: selected ? AppColors.navy : AppColors.card,
               borderRadius: BorderRadius.circular(10),
@@ -442,9 +611,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                         level['desc'] as String,
                         style: TextStyle(
                           fontSize: 12,
-                          color: selected
-                              ? Colors.white70
-                              : AppColors.muted,
+                          color: selected ? Colors.white70 : AppColors.muted,
                         ),
                       ),
                     ],
@@ -492,20 +659,21 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
       },
     ];
 
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        mainAxisExtent: 150,
+      ),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.5,
       children: goals.map((goal) {
         final value = goal['value'] as String;
         final color = goal['color'] as Color;
         final selected = _stats.goal == value;
         return GestureDetector(
-          onTap: () =>
-              setState(() => _stats = _stats.copyWith(goal: value)),
+          onTap: () => setState(() => _stats = _stats.copyWith(goal: value)),
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -519,8 +687,10 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(goal['emoji'] as String,
-                    style: const TextStyle(fontSize: 24)),
+                Text(
+                  goal['emoji'] as String,
+                  style: const TextStyle(fontSize: 24),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   goal['label'] as String,
@@ -570,34 +740,30 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
           const SizedBox(height: 14),
           Row(
             children: [
-              _statBox('BMI', _stats.bmi.toStringAsFixed(1), _bmiLabel(_stats.bmi)),
+              _statBox(
+                'BMI',
+                _stats.bmi.toStringAsFixed(1),
+                _bmiLabel(_stats.bmi),
+              ),
               const SizedBox(width: 10),
-              _statBox('TDEE', '${_stats.tdee.toStringAsFixed(0)} kcal', 'Maintenance'),
+              _statBox('TDEE', _units.energy(_stats.tdee), 'Maintenance'),
             ],
           ),
           const SizedBox(height: 10),
           _statBox(
-              'Target Calories',
-              '${_stats.targetCalories.toStringAsFixed(0)} kcal',
-              _goalLabel(_stats.goal),
-              fullWidth: true),
+            'Target Calories',
+            _units.energy(_stats.targetCalories),
+            _goalLabel(_stats.goal),
+            fullWidth: true,
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
-              _statBox(
-                  'Protein',
-                  '${_stats.targetProtein.toStringAsFixed(0)}g',
-                  'per day'),
+              _statBox('Protein', _units.food(_stats.targetProtein), 'per day'),
               const SizedBox(width: 10),
-              _statBox(
-                  'Carbs',
-                  '${_stats.targetCarbs.toStringAsFixed(0)}g',
-                  'per day'),
+              _statBox('Carbs', _units.food(_stats.targetCarbs), 'per day'),
               const SizedBox(width: 10),
-              _statBox(
-                  'Fat',
-                  '${_stats.targetFat.toStringAsFixed(0)}g',
-                  'per day'),
+              _statBox('Fat', _units.food(_stats.targetFat), 'per day'),
             ],
           ),
         ],
@@ -605,32 +771,44 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
     );
   }
 
-  Widget _statBox(String label, String value, String sub,
-      {bool fullWidth = false}) {
+  Widget _statBox(
+    String label,
+    String value,
+    String sub, {
+    bool fullWidth = false,
+  }) {
     final inner = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white70, fontSize: 11)),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+          ),
           const SizedBox(height: 2),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-          Text(sub,
-              style: const TextStyle(color: Colors.white54, fontSize: 10)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            sub,
+            style: const TextStyle(color: Colors.white54, fontSize: 10),
+          ),
         ],
       ),
     );
-    return fullWidth ? SizedBox(width: double.infinity, child: inner) : Expanded(child: inner);
+    return fullWidth
+        ? SizedBox(width: double.infinity, child: inner)
+        : Expanded(child: inner);
   }
 
   String _bmiLabel(double bmi) {
@@ -674,7 +852,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.orange.withOpacity(0.12),
+                color: AppColors.orange.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.orange, width: 1.5),
               ),
@@ -686,9 +864,10 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                     child: Text(
                       'Time for your weekly weigh-in! Log your current weight to keep your progress on track.',
                       style: TextStyle(
-                          color: AppColors.orange,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13),
+                        color: AppColors.orange,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -703,7 +882,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -725,12 +904,14 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        key: const ValueKey('log-weight'),
                         controller: _logWeightCtrl,
                         keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. 74.5',
-                          suffixText: 'kg',
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: _units.pounds ? 'e.g. 164.2' : 'e.g. 74.5',
+                          suffixText: _units.weightUnit,
                         ),
                       ),
                     ),
@@ -740,17 +921,23 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.blue,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 14),
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
                       ),
                       child: _addingWeight
                           ? const SizedBox(
                               height: 18,
                               width: 18,
                               child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2),
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
                             )
-                          : const Text('Add',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          : const Text(
+                              'Add',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                     ),
                   ],
                 ),
@@ -794,8 +981,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
   }
 
   Widget _buildWeightEntryRow(WeightEntry entry, double? delta) {
-    final dateStr =
-        DateFormat('EEE, MMM d yyyy').format(entry.date);
+    final dateStr = DateFormat('EEE, MMM d yyyy').format(entry.date);
     Widget deltaWidget = const SizedBox.shrink();
     if (delta != null) {
       final isLoss = delta < 0;
@@ -810,9 +996,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
               color: isLoss ? AppColors.green : AppColors.red,
             ),
           Text(
-            isNeutral
-                ? '—'
-                : '${delta.abs().toStringAsFixed(1)} kg',
+            isNeutral ? '—' : _units.weight(delta.abs()),
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -833,7 +1017,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -844,12 +1028,11 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
           Expanded(
             child: Text(
               dateStr,
-              style: const TextStyle(
-                  color: AppColors.muted, fontSize: 13),
+              style: const TextStyle(color: AppColors.muted, fontSize: 13),
             ),
           ),
           Text(
-            '${entry.weightKg.toStringAsFixed(1)} kg',
+            _units.weight(entry.weightKg),
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,
@@ -872,14 +1055,14 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
       ..sort((a, b) => a.date.compareTo(b.date));
     final chartData = sorted.take(24).toList();
 
-    final insight = CoachService.getProgressInsight(_stats);
+    final insight = AdaptivePlanService.weightInsight(_stats, DateTime.now());
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle('Weight Progress'),
+          _sectionTitle('Weight Progress (${_units.weightUnit})'),
           const SizedBox(height: 12),
           if (chartData.length < 2)
             Container(
@@ -922,10 +1105,10 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
     if (data.isEmpty) return const SizedBox.shrink();
 
     final spots = data.asMap().entries.map((e) {
-      return FlSpot(e.key.toDouble(), e.value.weightKg);
+      return FlSpot(e.key.toDouble(), _units.weightValue(e.value.weightKg));
     }).toList();
 
-    final weights = data.map((e) => e.weightKg).toList();
+    final weights = data.map((e) => _units.weightValue(e.weightKg)).toList();
     final minW = weights.reduce((a, b) => a < b ? a : b);
     final maxW = weights.reduce((a, b) => a > b ? a : b);
     final padding = (maxW - minW) < 1.0 ? 1.5 : 1.0;
@@ -948,7 +1131,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -962,10 +1145,8 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
             show: true,
             drawHorizontalLine: true,
             drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) => FlLine(
-              color: const Color(0xFFE2E8F0),
-              strokeWidth: 1,
-            ),
+            getDrawingHorizontalLine: (_) =>
+                FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
           ),
           borderData: FlBorderData(
             show: true,
@@ -983,7 +1164,9 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                   return Text(
                     value.toStringAsFixed(1),
                     style: const TextStyle(
-                        fontSize: 10, color: AppColors.muted),
+                      fontSize: 10,
+                      color: AppColors.muted,
+                    ),
                   );
                 },
               ),
@@ -1000,41 +1183,44 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                   if (idx < 0 || idx >= data.length) {
                     return const SizedBox.shrink();
                   }
-                  final label =
-                      DateFormat('MMM dd').format(data[idx].date);
+                  final label = DateFormat('MMM dd').format(data[idx].date);
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       label,
                       style: const TextStyle(
-                          fontSize: 9, color: AppColors.muted),
+                        fontSize: 9,
+                        color: AppColors.muted,
+                      ),
                     ),
                   );
                 },
               ),
             ),
             topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false)),
+              sideTitles: SideTitles(showTitles: false),
+            ),
             rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false)),
+              sideTitles: SideTitles(showTitles: false),
+            ),
           ),
-          extraLinesData: goalWeight != null &&
-                  goalWeight >= minY &&
-                  goalWeight <= maxY
+          extraLinesData:
+              goalWeight != null && goalWeight >= minY && goalWeight <= maxY
               ? ExtraLinesData(
                   horizontalLines: [
                     HorizontalLine(
                       y: goalWeight,
-                      color: AppColors.orange.withOpacity(0.7),
+                      color: AppColors.orange.withValues(alpha: 0.7),
                       strokeWidth: 1.5,
                       dashArray: [6, 4],
                       label: HorizontalLineLabel(
                         show: true,
                         alignment: Alignment.topRight,
                         style: const TextStyle(
-                            color: AppColors.orange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600),
+                          color: AppColors.orange,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
                         labelResolver: (_) => 'Goal',
                       ),
                     ),
@@ -1053,15 +1239,15 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                 show: true,
                 getDotPainter: (spot, percent, bar, index) =>
                     FlDotCirclePainter(
-                  radius: 4,
-                  color: AppColors.navy,
-                  strokeWidth: 2,
-                  strokeColor: Colors.white,
-                ),
+                      radius: 4,
+                      color: AppColors.navy,
+                      strokeWidth: 2,
+                      strokeColor: Colors.white,
+                    ),
               ),
               belowBarData: BarAreaData(
                 show: true,
-                color: AppColors.navy.withOpacity(0.08),
+                color: AppColors.navy.withValues(alpha: 0.08),
               ),
             ),
           ],
@@ -1073,11 +1259,12 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
                 if (idx < 0 || idx >= data.length) return null;
                 final entry = data[idx];
                 return LineTooltipItem(
-                  '${DateFormat('MMM dd').format(entry.date)}\n${entry.weightKg.toStringAsFixed(1)} kg',
+                  '${DateFormat('MMM dd').format(entry.date)}\n${_units.weight(entry.weightKg)}',
                   const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600),
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 );
               }).toList(),
             ),
@@ -1094,8 +1281,7 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
     final current = sorted.last;
     final totalDelta = current.weightKg - start.weightKg;
     final weekCount = sorted.length;
-    final daysTracked =
-        current.date.difference(start.date).inDays;
+    final daysTracked = current.date.difference(start.date).inDays;
     final weeksTracked = (daysTracked / 7).ceil();
 
     return Container(
@@ -1119,18 +1305,14 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
           const SizedBox(height: 12),
           Row(
             children: [
+              _summaryItem('Start', _units.weight(start.weightKg)),
+              _summaryItem('Current', _units.weight(current.weightKg)),
               _summaryItem(
-                  'Start', '${start.weightKg.toStringAsFixed(1)} kg'),
-              _summaryItem(
-                  'Current', '${current.weightKg.toStringAsFixed(1)} kg'),
-              _summaryItem(
-                  'Change',
-                  '${totalDelta >= 0 ? '+' : ''}${totalDelta.toStringAsFixed(1)} kg',
-                  color: totalDelta < 0 ? AppColors.green : AppColors.red),
-              _summaryItem(
-                  'Entries',
-                  '$weekCount',
-                  color: AppColors.blue),
+                'Change',
+                '${totalDelta >= 0 ? '+' : ''}${_units.weight(totalDelta)}',
+                color: totalDelta < 0 ? AppColors.green : AppColors.red,
+              ),
+              _summaryItem('Entries', '$weekCount', color: AppColors.blue),
             ],
           ),
           if (weeksTracked > 0) ...[
@@ -1158,9 +1340,10 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
             ),
           ),
           const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(
-                  color: AppColors.muted, fontSize: 11)),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.muted, fontSize: 11),
+          ),
         ],
       ),
     );
@@ -1228,11 +1411,14 @@ class _BodyStatsScreenState extends State<BodyStatsScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.muted)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.muted,
+          ),
+        ),
         const SizedBox(height: 6),
         child,
       ],

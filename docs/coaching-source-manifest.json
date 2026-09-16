@@ -1,0 +1,37 @@
+{
+  "source_folder": "/home/boss/Downloads/drive-download-20260524T031245Z-3-001",
+  "review_date": "2026-09-11",
+  "scope": "Selected chapters reviewed; original summaries only; textbooks are not bundled or used to train a model.",
+  "files": [
+    {
+      "filename": "ISSA-Sports-Nutrition-Certification-Main-Course-Textbook.pdf",
+      "sha256": "508a8d2182732c0a860fef76b9b0ba6988deb485b430f91131461a5f8b8fd1d2",
+      "bytes": 12305175
+    },
+    {
+      "filename": "ISSA-Transformation-Specialist-Main-Course-Textbook.pdf",
+      "sha256": "9990c77f1846be017905eab9c88d820f4a82f114a08fbe8966661f9d199b0eb5",
+      "bytes": 3409870
+    },
+    {
+      "filename": "ISSA_Bodybuilding_Main_Course_Textbook.pdf",
+      "sha256": "c064494534ff8bd37a3a3296d020d62bbd7dfa2909d67d3781023719b986fa8d",
+      "bytes": 8481442
+    },
+    {
+      "filename": "ISSA_Corrective_Exercise_Specialist_Main_Course_Textbook.pdf.pdf",
+      "sha256": "7eb454012e2702a2e538f2c4f08d5726827bd57277b446e91894798563f8f6a5",
+      "bytes": 10084358
+    },
+    {
+      "filename": "ISSA_Specialist_in_Exercise_Therapy_Main_Course_Textbook.pdf",
+      "sha256": "ac624d3ed7be1a8ba3345c2d0c3a52b287bb4dc9a467230683407ba999cae4ad",
+      "bytes": 7024496
+    },
+    {
+      "filename": "ISSA_Strength_and_Conditioning_Certification_Main_Course_Textbook.pdf",
+      "sha256": "7298f8f941f22d4124ea1495a0eab590908ac30354c7e03e7f10b4ad638e2bb0",
+      "bytes": 19464208
+    }
+  ]
+}

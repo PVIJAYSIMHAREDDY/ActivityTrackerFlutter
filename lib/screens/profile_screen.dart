@@ -1,4 +1,7 @@
-import 'dart:io';
+import '../widgets/load_error.dart';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'privacy_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,7 +10,6 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/body_stats_model.dart';
 import '../screens/body_stats_screen.dart';
-import '../screens/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,10 +22,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   AuthUser? _user;
   BodyStats? _stats;
   bool _loading = true;
-  bool _notificationsEnabled = true;
+  bool _loadFailed = false;
   String? _customPhotoPath;
-
-  static const _keyCustomPhoto = 'custom_profile_photo';
 
   @override
   void initState() {
@@ -32,43 +32,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _loading = true);
-    var user = await AuthService.getCurrentUser();
-    final stats = await BodyStats.load();
-    final prefs = await SharedPreferences.getInstance();
-    final notif = prefs.getBool('notifications_enabled') ?? true;
-    final customPhoto = prefs.getString(_keyCustomPhoto);
-
-    // Load display name from Firestore (global, syncs across devices)
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _loadFailed = false;
+    });
     try {
-      final profile = await FirestoreService.loadProfile();
-      if (profile != null && profile['displayName'] != null && user != null) {
-        final globalName = profile['displayName'] as String;
-        user = AuthUser(
-          name: globalName,
-          email: user.email,
-          photoUrl: user.photoUrl,
-          provider: user.provider,
-        );
-        await prefs.setString('user_name', globalName);
+      setState(() => _loading = true);
+      var user = await AuthService.getCurrentUser();
+      final stats = await BodyStats.load();
+      final prefs = await SharedPreferences.getInstance();
+      String? customPhoto;
+
+      // Load display name from Firestore (global, syncs across devices)
+      try {
+        final profile = await FirestoreService.loadProfile();
+        customPhoto = profile?['photoBase64'] as String?;
+        if (profile != null && profile['displayName'] != null && user != null) {
+          final globalName = profile['displayName'] as String;
+          user = AuthUser(
+            name: globalName,
+            email: user.email,
+            photoUrl: user.photoUrl,
+            provider: user.provider,
+          );
+          await prefs.setString('user_name', globalName);
+        }
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _user = user;
+          _stats = stats;
+          _customPhotoPath = customPhoto;
+          _loading = false;
+        });
       }
-    } catch (_) {}
-
-    if (mounted) {
-      setState(() {
-        _user = user;
-        _stats = stats;
-        _notificationsEnabled = notif;
-        _customPhotoPath = customPhoto;
-        _loading = false;
-      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadFailed = true;
+        });
+      }
     }
-  }
-
-  Future<void> _setNotifications(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notifications_enabled', value);
-    setState(() => _notificationsEnabled = value);
   }
 
   void _showSnack(String msg, {Color? color}) {
@@ -111,7 +118,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.muted)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.muted),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
@@ -131,57 +141,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickProfilePhoto() async {
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<ImageSource>(
+    final action = await showModalBottomSheet<String>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 8),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 12),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined, color: AppColors.navy),
-              title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              title: const Text('Choose photo'),
+              leading: const Icon(Icons.photo_library_outlined),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
             ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined, color: AppColors.navy),
-              title: const Text('Take a Photo'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
+            if (!kIsWeb)
+              ListTile(
+                title: const Text('Take a photo'),
+                leading: const Icon(Icons.camera_alt_outlined),
+                onTap: () => Navigator.pop(ctx, 'camera'),
+              ),
             if (_customPhotoPath != null)
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: AppColors.red),
-                title: const Text('Remove Custom Photo', style: TextStyle(color: AppColors.red)),
-                onTap: () => Navigator.pop(ctx, null),
+                title: const Text('Remove photo'),
+                onTap: () => Navigator.pop(ctx, 'remove'),
               ),
-            const SizedBox(height: 8),
           ],
         ),
       ),
     );
-
-    if (source == null && _customPhotoPath != null) {
-      // Remove photo
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_keyCustomPhoto);
-      setState(() => _customPhotoPath = null);
-      _showSnack('Profile photo removed');
-      return;
+    if (action == null) return;
+    try {
+      String? encoded;
+      if (action != 'remove') {
+        final picked = await ImagePicker().pickImage(
+          source: action == 'camera' ? ImageSource.camera : ImageSource.gallery,
+          imageQuality: 65,
+          maxWidth: 384,
+          maxHeight: 384,
+        );
+        if (picked == null) return;
+        final bytes = await picked.readAsBytes();
+        if (bytes.length > 200000) {
+          _showSnack('Choose a smaller photo (under 200 KB).');
+          return;
+        }
+        encoded = base64Encode(bytes);
+      }
+      await FirestoreService.saveProfile({'photoBase64': encoded});
+      if (mounted) setState(() => _customPhotoPath = encoded);
+      _showSnack(action == 'remove' ? 'Photo removed' : 'Photo updated');
+    } catch (_) {
+      _showSnack('Photo could not be saved. Please try again.');
     }
-    if (source == null) return;
+  }
 
-    final picked = await picker.pickImage(source: source, imageQuality: 80, maxWidth: 512);
-    if (picked == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyCustomPhoto, picked.path);
-    setState(() => _customPhotoPath = picked.path);
-    _showSnack('Profile photo updated');
+  Future<void> _linkGoogle() async {
+    try {
+      await AuthService.signInWithGoogle();
+      if (mounted) await _loadData();
+    } catch (_) {
+      _showSnack(
+        'Could not link Google. If that account already exists, keep this guest session until you have saved its records.',
+      );
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete account and data?'),
+        content: const Text(
+          'This permanently deletes your profile, workouts, meals, habits, tasks, goals and weight records. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete permanently'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      await AuthService.deleteAccount();
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+      _showSnack(
+        'Deletion did not finish. Check your connection and retry to remove any remaining records.',
+      );
+    }
   }
 
   Future<void> _showDisplayNameDialog() async {
@@ -189,7 +242,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Display Name', style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Display Name',
+          style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold),
+        ),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
@@ -200,7 +256,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           textCapitalization: TextCapitalization.words,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: AppColors.muted))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.muted),
+            ),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.blue),
@@ -215,12 +277,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Sync to Firestore so name shows on all devices
       await FirestoreService.saveProfile({'displayName': result});
       if (!mounted) return;
-      setState(() => _user = AuthUser(
-        name: result,
-        email: _user?.email ?? '',
-        photoUrl: _user?.photoUrl,
-        provider: _user?.provider ?? AuthProvider.google,
-      ));
+      setState(
+        () => _user = AuthUser(
+          name: result,
+          email: _user?.email ?? '',
+          photoUrl: _user?.photoUrl,
+          provider: _user?.provider ?? AuthProvider.google,
+        ),
+      );
       _showSnack('Display name updated');
     }
   }
@@ -233,11 +297,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'Sign Out',
           style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold),
         ),
-        content: const Text('Are you sure you want to sign out?'),
+        content: Text(
+          _user?.provider == AuthProvider.guest
+              ? 'Guest records cannot be recovered after signing out. Link Google first to keep them, or delete your guest account to remove them.'
+              : 'Are you sure you want to sign out?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.muted)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.muted),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -250,11 +321,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirmed == true) {
       await AuthService.signOut();
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (_) => false,
-        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     }
   }
@@ -332,7 +399,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: _loading
+      body: _loadFailed
+          ? LoadError(onRetry: _loadData)
+          : _loading
           ? const Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.navy),
@@ -346,9 +415,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _buildUserCard(),
                   const SizedBox(height: 16),
+                  ListTile(
+                    leading: const Icon(Icons.straighten),
+                    title: const Text('Measurement units'),
+                    subtitle: const Text(
+                      'kg / lb, cm / feet & inches, g / oz, kcal / kJ',
+                    ),
+                    onTap: _openBodyStats,
+                  ),
                   _buildBodyStatsCard(),
                   const SizedBox(height: 16),
                   _buildAccountSettings(),
+                  if (_user?.provider == AuthProvider.guest)
+                    FilledButton(
+                      onPressed: _linkGoogle,
+                      child: const Text('Link Google to sync across devices'),
+                    ),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+                    ),
+                    child: const Text('Privacy & health information'),
+                  ),
                   const SizedBox(height: 16),
                   _buildWeighInCard(),
                   const SizedBox(height: 16),
@@ -356,7 +445,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 24),
                   _buildSignOutButton(),
                   const SizedBox(height: 16),
-                  _buildSeedDataButton(),
+                  if (kDebugMode) _buildSeedDataButton(),
+                  TextButton(
+                    onPressed: _deleteAccount,
+                    child: const Text(
+                      'Delete account and data',
+                      style: TextStyle(color: AppColors.red),
+                    ),
+                  ),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -387,7 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.navy.withOpacity(0.2),
+                          color: AppColors.navy.withValues(alpha: 0.2),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -395,25 +491,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: _customPhotoPath != null
                         ? ClipOval(
-                            child: Image.file(
-                              File(_customPhotoPath!),
+                            child: Image.memory(
+                              base64Decode(_customPhotoPath!),
                               width: 90,
                               height: 90,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _buildInitialsAvatar(),
+                              errorBuilder: (_, error, stackTrace) =>
+                                  _buildInitialsAvatar(),
                             ),
                           )
                         : photoUrl != null && photoUrl.isNotEmpty
-                            ? ClipOval(
-                                child: Image.network(
-                                  photoUrl,
-                                  width: 90,
-                                  height: 90,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _buildInitialsAvatar(),
-                                ),
-                              )
-                            : _buildInitialsAvatar(),
+                        ? ClipOval(
+                            child: Image.network(
+                              photoUrl,
+                              width: 90,
+                              height: 90,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, error, stackTrace) =>
+                                  _buildInitialsAvatar(),
+                            ),
+                          )
+                        : _buildInitialsAvatar(),
                   ),
                   Positioned(
                     bottom: 0,
@@ -425,7 +523,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: AppColors.blue,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ),
                   ),
                 ],
@@ -449,7 +551,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(width: 6),
-                  const Icon(Icons.edit_outlined, size: 16, color: AppColors.muted),
+                  const Icon(
+                    Icons.edit_outlined,
+                    size: 16,
+                    color: AppColors.muted,
+                  ),
                 ],
               ),
             ),
@@ -458,10 +564,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if ((_user?.email ?? '').isNotEmpty)
               Text(
                 _user!.email,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.muted,
-                ),
+                style: const TextStyle(fontSize: 14, color: AppColors.muted),
                 textAlign: TextAlign.center,
               ),
             const SizedBox(height: 12),
@@ -469,9 +572,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
-                color: _providerColor().withOpacity(0.12),
+                color: _providerColor().withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _providerColor().withOpacity(0.4)),
+                border: Border.all(
+                  color: _providerColor().withValues(alpha: 0.4),
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -480,8 +585,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _user?.provider == AuthProvider.google
                         ? Icons.g_mobiledata
                         : _user?.provider == AuthProvider.facebook
-                            ? Icons.facebook
-                            : Icons.person_outline,
+                        ? Icons.facebook
+                        : Icons.person_outline,
                     size: 16,
                     color: _providerColor(),
                   ),
@@ -547,11 +652,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.green.withOpacity(0.15),
+                      color: AppColors.green.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.monitor_weight_outlined,
-                        color: AppColors.green, size: 20),
+                    child: const Icon(
+                      Icons.monitor_weight_outlined,
+                      color: AppColors.green,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   const Text(
@@ -577,12 +685,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     _buildStatChip(
                       label: 'Weight',
-                      value: '${stats.weightKg.toStringAsFixed(1)} kg',
+                      value: stats.units.weight(stats.weightKg),
                       color: AppColors.blue,
                     ),
                     _buildStatChip(
                       label: 'Height',
-                      value: '${stats.heightCm.toStringAsFixed(0)} cm',
+                      value: stats.units.height(stats.heightCm),
                       color: AppColors.purple,
                     ),
                     _buildStatChip(
@@ -606,7 +714,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     foregroundColor: AppColors.blue,
                     side: const BorderSide(color: AppColors.blue),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                   child: const Text(
@@ -682,7 +791,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.blue.withOpacity(0.12),
+                color: AppColors.blue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.phone, color: AppColors.blue, size: 20),
@@ -697,8 +806,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   : 'Not set',
               style: const TextStyle(fontSize: 13, color: AppColors.muted),
             ),
-            trailing: const Icon(Icons.edit_outlined,
-                color: AppColors.muted, size: 18),
+            trailing: const Icon(
+              Icons.edit_outlined,
+              color: AppColors.muted,
+              size: 18,
+            ),
             onTap: _showPhoneDialog,
           ),
           const Divider(height: 1, indent: 72, endIndent: 16),
@@ -708,11 +820,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.navy.withOpacity(0.10),
+                color: AppColors.navy.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.email_outlined,
-                  color: AppColors.navy, size: 20),
+              child: const Icon(
+                Icons.email_outlined,
+                color: AppColors.navy,
+                size: 20,
+              ),
             ),
             title: const Text(
               'Email',
@@ -732,7 +847,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     '(managed by $providerName)',
                     style: const TextStyle(
-                        fontSize: 11, color: AppColors.muted),
+                      fontSize: 11,
+                      color: AppColors.muted,
+                    ),
                   ),
               ],
             ),
@@ -745,44 +862,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.orange.withOpacity(0.12),
+                color: AppColors.orange.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.badge_outlined, color: AppColors.orange, size: 20),
+              child: const Icon(
+                Icons.badge_outlined,
+                color: AppColors.orange,
+                size: 20,
+              ),
             ),
-            title: const Text('Display Name', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            title: const Text(
+              'Display Name',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
             subtitle: Text(
               _user?.name ?? 'Not set',
               style: const TextStyle(fontSize: 13, color: AppColors.muted),
             ),
-            trailing: const Icon(Icons.edit_outlined, color: AppColors.muted, size: 18),
+            trailing: const Icon(
+              Icons.edit_outlined,
+              color: AppColors.muted,
+              size: 18,
+            ),
             onTap: _showDisplayNameDialog,
           ),
           const Divider(height: 1, indent: 72, endIndent: 16),
 
-          // Notifications
-          SwitchListTile(
-            secondary: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.green.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.notifications_outlined,
-                  color: AppColors.green, size: 20),
-            ),
-            title: const Text(
-              'Notifications',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-            subtitle: Text(
-              _notificationsEnabled ? 'Enabled' : 'Disabled',
-              style: const TextStyle(fontSize: 13, color: AppColors.muted),
-            ),
-            value: _notificationsEnabled,
-            activeColor: AppColors.green,
-            onChanged: _setNotifications,
-          ),
           const SizedBox(height: 4),
         ],
       ),
@@ -794,11 +899,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildWeighInCard() {
     final daysLeft = _daysUntilWeighIn();
     final isDue = daysLeft == 0;
-    final bgColor =
-        isDue ? AppColors.orange.withOpacity(0.12) : AppColors.blue.withOpacity(0.07);
+    final bgColor = isDue
+        ? AppColors.orange.withValues(alpha: 0.12)
+        : AppColors.blue.withValues(alpha: 0.07);
     final iconColor = isDue ? AppColors.orange : AppColors.blue;
-    final borderColor =
-        isDue ? AppColors.orange.withOpacity(0.4) : AppColors.blue.withOpacity(0.2);
+    final borderColor = isDue
+        ? AppColors.orange.withValues(alpha: 0.4)
+        : AppColors.blue.withValues(alpha: 0.2);
 
     return GestureDetector(
       onTap: _openBodyStats,
@@ -815,7 +922,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.15),
+                color: iconColor.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -846,7 +953,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? 'Tap to log your weight now'
                         : 'Weekly weigh-in keeps you on track',
                     style: const TextStyle(
-                        fontSize: 13, color: AppColors.muted),
+                      fontSize: 13,
+                      color: AppColors.muted,
+                    ),
                   ),
                 ],
               ),
@@ -884,18 +993,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.navy.withOpacity(0.1),
+                color: AppColors.navy.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.info_outline,
-                  color: AppColors.navy, size: 20),
+              child: const Icon(
+                Icons.info_outline,
+                color: AppColors.navy,
+                size: 20,
+              ),
             ),
             title: const Text(
               'App Version',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
             trailing: const Text(
-              '1.0.0',
+              '1.0.1',
               style: TextStyle(color: AppColors.muted, fontSize: 13),
             ),
           ),
@@ -905,10 +1017,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.purple.withOpacity(0.12),
+                color: AppColors.purple.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.business, color: AppColors.purple, size: 20),
+              child: const Icon(
+                Icons.business,
+                color: AppColors.purple,
+                size: 20,
+              ),
             ),
             title: const Text(
               'Developer',
@@ -925,19 +1041,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.orange.withOpacity(0.12),
+                color: AppColors.orange.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.star_outline,
-                  color: AppColors.orange, size: 20),
+              child: const Icon(
+                Icons.star_outline,
+                color: AppColors.orange,
+                size: 20,
+              ),
             ),
             title: const Text(
-              'Rate This App',
+              'Privacy & health information',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
-            trailing: const Icon(Icons.arrow_forward_ios,
-                color: AppColors.muted, size: 14),
-            onTap: () => _showSnack('Opening Play Store...'),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              color: AppColors.muted,
+              size: 14,
+            ),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+            ),
           ),
           const Divider(height: 1, indent: 72, endIndent: 16),
 
@@ -945,18 +1070,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.blue.withOpacity(0.12),
+                color: AppColors.blue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.shield_outlined,
-                  color: AppColors.blue, size: 20),
+              child: const Icon(
+                Icons.shield_outlined,
+                color: AppColors.blue,
+                size: 20,
+              ),
             ),
             title: const Text(
               'Privacy Policy',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
-            trailing: const Icon(Icons.arrow_forward_ios,
-                color: AppColors.muted, size: 14),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              color: AppColors.muted,
+              size: 14,
+            ),
             onTap: () => _showSnack('Opening privacy policy...'),
           ),
           const SizedBox(height: 4),
@@ -979,7 +1110,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         onPressed: _seedSampleData,
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: AppColors.muted),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
@@ -991,9 +1124,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Load Sample Data'),
-        content: const Text('This will add sample tasks, habits, workouts, diet entries, and goals for today so you can test all features. Existing data is kept.'),
+        content: const Text(
+          'This will add sample tasks, habits, workouts, diet entries, and goals for today so you can test all features. Existing data is kept.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy),
@@ -1005,15 +1143,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirmed != true) return;
 
     final today = DateTime.now();
-    final dateStr = '${today.year}-${today.month.toString().padLeft(2,'0')}-${today.day.toString().padLeft(2,'0')}';
+    final dateStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
     try {
       // Tasks
       final tasks = [
-        {'id': 'sample_task_1', 'text': 'Review weekly workout plan', 'priority': 'high', 'done': true, 'date': dateStr},
-        {'id': 'sample_task_2', 'text': 'Prepare meal prep for the week', 'priority': 'medium', 'done': false, 'date': dateStr},
-        {'id': 'sample_task_3', 'text': 'Read 20 pages of fitness book', 'priority': 'low', 'done': false, 'date': dateStr},
-        {'id': 'sample_task_4', 'text': 'Buy protein powder', 'priority': 'medium', 'done': true, 'date': dateStr},
+        {
+          'id': 'sample_task_1',
+          'text': 'Review weekly workout plan',
+          'priority': 'high',
+          'done': true,
+          'date': dateStr,
+        },
+        {
+          'id': 'sample_task_2',
+          'text': 'Prepare meal prep for the week',
+          'priority': 'medium',
+          'done': false,
+          'date': dateStr,
+        },
+        {
+          'id': 'sample_task_3',
+          'text': 'Read 20 pages of fitness book',
+          'priority': 'low',
+          'done': false,
+          'date': dateStr,
+        },
+        {
+          'id': 'sample_task_4',
+          'text': 'Buy protein powder',
+          'priority': 'medium',
+          'done': true,
+          'date': dateStr,
+        },
       ];
       for (final t in tasks) {
         await FirestoreService.saveTask(t);
@@ -1021,12 +1184,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Habits
       final yesterday = today.subtract(const Duration(days: 1));
-      final yStr = '${yesterday.year}-${yesterday.month.toString().padLeft(2,'0')}-${yesterday.day.toString().padLeft(2,'0')}';
+      final yStr =
+          '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
       final habits = [
-        {'id': 'sample_habit_1', 'name': 'Drink 2L Water', 'icon': '💧', 'streak': 5, 'lastDoneDate': dateStr},
-        {'id': 'sample_habit_2', 'name': 'Morning Run', 'icon': '🏃', 'streak': 3, 'lastDoneDate': yStr},
-        {'id': 'sample_habit_3', 'name': 'Read Books', 'icon': '📚', 'streak': 7, 'lastDoneDate': dateStr},
-        {'id': 'sample_habit_4', 'name': 'Meditate', 'icon': '🧘', 'streak': 2, 'lastDoneDate': ''},
+        {
+          'id': 'sample_habit_1',
+          'name': 'Drink 2L Water',
+          'icon': '💧',
+          'streak': 5,
+          'lastDoneDate': dateStr,
+        },
+        {
+          'id': 'sample_habit_2',
+          'name': 'Morning Run',
+          'icon': '🏃',
+          'streak': 3,
+          'lastDoneDate': yStr,
+        },
+        {
+          'id': 'sample_habit_3',
+          'name': 'Read Books',
+          'icon': '📚',
+          'streak': 7,
+          'lastDoneDate': dateStr,
+        },
+        {
+          'id': 'sample_habit_4',
+          'name': 'Meditate',
+          'icon': '🧘',
+          'streak': 2,
+          'lastDoneDate': '',
+        },
       ];
       for (final h in habits) {
         await FirestoreService.saveHabit(h);
@@ -1034,8 +1222,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Workouts
       final workouts = [
-        {'id': 'sample_workout_1', 'type': 'strength', 'label': 'Strength', 'durationMins': 45, 'notes': 'Bench press, squats, deadlifts. Felt strong today!', 'date': dateStr},
-        {'id': 'sample_workout_2', 'type': 'cardio', 'label': 'Cardio', 'durationMins': 30, 'notes': '5k run at moderate pace', 'date': dateStr},
+        {
+          'id': 'sample_workout_1',
+          'type': 'strength',
+          'label': 'Strength',
+          'durationMins': 45,
+          'notes': 'Bench press, squats, deadlifts. Felt strong today!',
+          'date': dateStr,
+        },
+        {
+          'id': 'sample_workout_2',
+          'type': 'cardio',
+          'label': 'Cardio',
+          'durationMins': 30,
+          'notes': '5k run at moderate pace',
+          'date': dateStr,
+        },
       ];
       for (final w in workouts) {
         await FirestoreService.saveWorkout(w);
@@ -1043,10 +1245,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Diet entries
       final meals = [
-        {'id': 'sample_meal_1', 'name': 'Oatmeal with Berries', 'mealType': 'breakfast', 'calories': 380.0, 'protein': 12.0, 'carbs': 65.0, 'fat': 7.0, 'date': dateStr},
-        {'id': 'sample_meal_2', 'name': 'Chicken Rice Bowl', 'mealType': 'lunch', 'calories': 620.0, 'protein': 45.0, 'carbs': 70.0, 'fat': 12.0, 'date': dateStr},
-        {'id': 'sample_meal_3', 'name': 'Whey Protein Shake', 'mealType': 'snack', 'calories': 150.0, 'protein': 25.0, 'carbs': 8.0, 'fat': 2.0, 'date': dateStr},
-        {'id': 'sample_meal_4', 'name': 'Salmon with Vegetables', 'mealType': 'dinner', 'calories': 550.0, 'protein': 40.0, 'carbs': 30.0, 'fat': 22.0, 'date': dateStr},
+        {
+          'id': 'sample_meal_1',
+          'name': 'Oatmeal with Berries',
+          'mealType': 'breakfast',
+          'calories': 380.0,
+          'protein': 12.0,
+          'carbs': 65.0,
+          'fat': 7.0,
+          'date': dateStr,
+        },
+        {
+          'id': 'sample_meal_2',
+          'name': 'Chicken Rice Bowl',
+          'mealType': 'lunch',
+          'calories': 620.0,
+          'protein': 45.0,
+          'carbs': 70.0,
+          'fat': 12.0,
+          'date': dateStr,
+        },
+        {
+          'id': 'sample_meal_3',
+          'name': 'Whey Protein Shake',
+          'mealType': 'snack',
+          'calories': 150.0,
+          'protein': 25.0,
+          'carbs': 8.0,
+          'fat': 2.0,
+          'date': dateStr,
+        },
+        {
+          'id': 'sample_meal_4',
+          'name': 'Salmon with Vegetables',
+          'mealType': 'dinner',
+          'calories': 550.0,
+          'protein': 40.0,
+          'carbs': 30.0,
+          'fat': 22.0,
+          'date': dateStr,
+        },
       ];
       for (final m in meals) {
         await FirestoreService.saveMeal(m);
@@ -1054,10 +1292,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Goals
       final goals = [
-        {'id': 'sample_goal_1', 'title': 'Lose 5kg body weight', 'category': 'fitness', 'targetValue': 5.0, 'currentValue': 2.5},
-        {'id': 'sample_goal_2', 'title': 'Run 100km this month', 'category': 'fitness', 'targetValue': 100.0, 'currentValue': 38.0},
-        {'id': 'sample_goal_3', 'title': 'Read 10 books this year', 'category': 'personal', 'targetValue': 10.0, 'currentValue': 4.0},
-        {'id': 'sample_goal_4', 'title': 'Save £500 for gym gear', 'category': 'finance', 'targetValue': 500.0, 'currentValue': 150.0},
+        {
+          'id': 'sample_goal_1',
+          'title': 'Lose 5kg body weight',
+          'category': 'fitness',
+          'targetValue': 5.0,
+          'currentValue': 2.5,
+        },
+        {
+          'id': 'sample_goal_2',
+          'title': 'Run 100km this month',
+          'category': 'fitness',
+          'targetValue': 100.0,
+          'currentValue': 38.0,
+        },
+        {
+          'id': 'sample_goal_3',
+          'title': 'Read 10 books this year',
+          'category': 'personal',
+          'targetValue': 10.0,
+          'currentValue': 4.0,
+        },
+        {
+          'id': 'sample_goal_4',
+          'title': 'Save £500 for gym gear',
+          'category': 'finance',
+          'targetValue': 500.0,
+          'currentValue': 150.0,
+        },
       ];
       for (final g in goals) {
         await FirestoreService.saveGoal(g);
@@ -1075,16 +1337,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'phoneNumber': '',
         'programStartDate': today.toIso8601String(),
         'weightHistory': [
-          {'date': today.subtract(const Duration(days: 28)).toIso8601String(), 'weightKg': 83.5},
-          {'date': today.subtract(const Duration(days: 21)).toIso8601String(), 'weightKg': 82.8},
-          {'date': today.subtract(const Duration(days: 14)).toIso8601String(), 'weightKg': 81.5},
-          {'date': today.subtract(const Duration(days: 7)).toIso8601String(), 'weightKg': 80.9},
+          {
+            'date': today.subtract(const Duration(days: 28)).toIso8601String(),
+            'weightKg': 83.5,
+          },
+          {
+            'date': today.subtract(const Duration(days: 21)).toIso8601String(),
+            'weightKg': 82.8,
+          },
+          {
+            'date': today.subtract(const Duration(days: 14)).toIso8601String(),
+            'weightKg': 81.5,
+          },
+          {
+            'date': today.subtract(const Duration(days: 7)).toIso8601String(),
+            'weightKg': 80.9,
+          },
           {'date': today.toIso8601String(), 'weightKg': 80.0},
         ],
       });
 
       if (!mounted) return;
-      _showSnack('Sample data loaded! All tabs are now populated.', color: AppColors.green);
+      _showSnack(
+        'Sample data loaded! All tabs are now populated.',
+        color: AppColors.green,
+      );
       _loadData();
     } catch (e) {
       if (!mounted) return;
@@ -1110,8 +1387,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         onPressed: _showSignOutDialog,
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: AppColors.red, width: 1.5),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),

@@ -19,7 +19,16 @@ class _HabitsScreenState extends State<HabitsScreen> {
   String _selectedIcon = '💧';
 
   static const List<String> _icons = [
-    '💧', '🏃', '📚', '🧘', '🥗', '💊', '😴', '✍️', '🎯', '🔥'
+    '💧',
+    '🏃',
+    '📚',
+    '🧘',
+    '🥗',
+    '💊',
+    '😴',
+    '✍️',
+    '🎯',
+    '🔥',
   ];
 
   @override
@@ -47,40 +56,18 @@ class _HabitsScreenState extends State<HabitsScreen> {
     }
   }
 
-  String _todayString() {
-    final today = DateTime.now();
-    return '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-  }
-
-  String _yesterdayString() {
-    final yesterday = DateTime.now().subtract(const Duration(days: 1));
-    return '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
-  }
-
   Future<void> _toggleHabit(HabitModel habit) async {
+    if (_selectedDate.isAfter(AppDateUtils.today())) {
+      _showError('You can mark habits for today or earlier.');
+      return;
+    }
     try {
-      final today = _todayString();
-      final yesterday = _yesterdayString();
-      HabitModel updated;
-      if (habit.doneToday) {
-        updated = habit.copyWith(
-          lastDoneDate: '',
-          streak: habit.streak > 0 ? habit.streak - 1 : 0,
-        );
-      } else if (habit.lastDoneDate == yesterday) {
-        updated = habit.copyWith(
-          lastDoneDate: today,
-          streak: habit.streak + 1,
-        );
-      } else {
-        updated = habit.copyWith(
-          lastDoneDate: today,
-          streak: 1,
-        );
-      }
-      await FirestoreService.saveHabit(updated.toMap());
-    } catch (e) {
-      _showError('Failed to toggle habit');
+      await FirestoreService.toggleHabit(
+        habit.id,
+        AppDateUtils.formatDate(_selectedDate),
+      );
+    } catch (_) {
+      _showError('Failed to update habit. Please try again.');
     }
   }
 
@@ -91,7 +78,10 @@ class _HabitsScreenState extends State<HabitsScreen> {
         title: const Text('Delete Habit'),
         content: Text('Delete "${habit.name}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete', style: TextStyle(color: AppColors.red)),
@@ -126,16 +116,45 @@ class _HabitsScreenState extends State<HabitsScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirestoreService.habitsStream(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Your records could not load. Check your connection and try again.',
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {}),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           final isLoading = snapshot.connectionState == ConnectionState.waiting;
           List<HabitModel> habits = [];
           if (snapshot.hasData) {
             final docs = snapshot.data?.docs ?? [];
             try {
-              habits = docs.map((doc) => HabitModel.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)).toList();
+              habits = docs
+                  .map(
+                    (doc) => HabitModel.fromFirestore(
+                      doc.data() as Map<String, dynamic>,
+                      doc.id,
+                    ),
+                  )
+                  .toList();
             } catch (_) {}
           }
-          final done     = habits.where((h) => h.doneToday).length;
-          final total    = habits.length;
+          final done = habits
+              .where((h) => h.doneOn(AppDateUtils.formatDate(_selectedDate)))
+              .length;
+          final total = habits.length;
           final progress = total > 0 ? done / total : 0.0;
 
           return Column(
@@ -144,26 +163,31 @@ class _HabitsScreenState extends State<HabitsScreen> {
               if (habits.isNotEmpty) _buildHeader(done, total, progress),
               Expanded(
                 child: isLoading
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.navy))
+                    ? const Center(
+                        child: CircularProgressIndicator(color: AppColors.navy),
+                      )
                     : habits.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text('🌱', style: TextStyle(fontSize: 48)),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No habits yet. Add one below!',
-                                  style: TextStyle(color: AppColors.muted, fontSize: 16),
-                                ),
-                              ],
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text('🌱', style: TextStyle(fontSize: 48)),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No habits yet. Add one below!',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 16,
+                              ),
                             ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            itemCount: habits.length,
-                            itemBuilder: (ctx, i) => _buildHabitItem(habits[i]),
-                          ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: habits.length,
+                        itemBuilder: (ctx, i) => _buildHabitItem(habits[i]),
+                      ),
               ),
               _buildAddBar(),
             ],
@@ -186,10 +210,18 @@ class _HabitsScreenState extends State<HabitsScreen> {
           ),
           Text(
             AppDateUtils.formatDateDisplay(_selectedDate),
-            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+            icon: const Icon(
+              Icons.chevron_right,
+              color: Colors.white,
+              size: 28,
+            ),
             onPressed: () => _changeDate(1),
           ),
         ],
@@ -217,7 +249,7 @@ class _HabitsScreenState extends State<HabitsScreen> {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: AppColors.green.withOpacity(0.15),
+              backgroundColor: AppColors.green.withValues(alpha: 0.15),
               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.green),
               minHeight: 8,
             ),
@@ -237,14 +269,17 @@ class _HabitsScreenState extends State<HabitsScreen> {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
           ],
         ),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 6,
+          ),
           leading: Text(habit.icon, style: const TextStyle(fontSize: 26)),
           title: Text(
             habit.name,
@@ -265,13 +300,17 @@ class _HabitsScreenState extends State<HabitsScreen> {
               height: 32,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: habit.doneToday ? AppColors.green : Colors.transparent,
+                color: habit.doneOn(AppDateUtils.formatDate(_selectedDate))
+                    ? AppColors.green
+                    : Colors.transparent,
                 border: Border.all(
-                  color: habit.doneToday ? AppColors.green : AppColors.muted,
+                  color: habit.doneOn(AppDateUtils.formatDate(_selectedDate))
+                      ? AppColors.green
+                      : AppColors.muted,
                   width: 2,
                 ),
               ),
-              child: habit.doneToday
+              child: habit.doneOn(AppDateUtils.formatDate(_selectedDate))
                   ? const Icon(Icons.check, color: Colors.white, size: 18)
                   : null,
             ),
@@ -305,7 +344,9 @@ class _HabitsScreenState extends State<HabitsScreen> {
                     margin: const EdgeInsets.only(right: 6),
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: selected ? AppColors.navy.withOpacity(0.15) : Colors.transparent,
+                      color: selected
+                          ? AppColors.navy.withValues(alpha: 0.15)
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: selected ? AppColors.navy : Colors.transparent,
@@ -335,7 +376,10 @@ class _HabitsScreenState extends State<HabitsScreen> {
                 onPressed: _addHabit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.navy,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
                 child: const Text('Add'),
               ),

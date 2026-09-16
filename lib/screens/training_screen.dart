@@ -12,7 +12,8 @@ class TrainingScreen extends StatefulWidget {
   State<TrainingScreen> createState() => _TrainingScreenState();
 }
 
-class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProviderStateMixin {
+class _TrainingScreenState extends State<TrainingScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   DateTime _selectedDate = AppDateUtils.today();
 
@@ -94,7 +95,10 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
         title: const Text('Delete Workout'),
         content: const Text('Delete this workout?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete', style: TextStyle(color: AppColors.red)),
@@ -144,7 +148,10 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
               indicatorColor: Colors.white,
               labelColor: Colors.white,
               unselectedLabelColor: const Color(0xFF8BA3BE),
-              labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
               tabs: const [
                 Tab(text: 'Log'),
                 Tab(text: 'History'),
@@ -154,10 +161,7 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildLogTab(),
-                _buildHistoryTab(),
-              ],
+              children: [_buildLogTab(), _buildHistoryTab()],
             ),
           ),
         ],
@@ -178,10 +182,18 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
           ),
           Text(
             AppDateUtils.formatDateDisplay(_selectedDate),
-            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+            icon: const Icon(
+              Icons.chevron_right,
+              color: Colors.white,
+              size: 28,
+            ),
             onPressed: () => _changeDate(1),
           ),
         ],
@@ -244,9 +256,7 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
           TextField(
             controller: _notesController,
             maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Optional notes...',
-            ),
+            decoration: const InputDecoration(hintText: 'Optional notes...'),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -261,11 +271,17 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Text(
                       'Save Workout',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
             ),
           ),
@@ -289,7 +305,7 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
@@ -316,23 +332,60 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
 
   Widget _buildHistoryTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.workoutsStream(AppDateUtils.formatDate(_selectedDate)),
+      stream: FirestoreService.workoutsStream(
+        AppDateUtils.formatDate(_selectedDate),
+      ),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Your records could not load. Check your connection and try again.',
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() {}),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.navy));
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.navy),
+          );
         }
         final docs = snapshot.data?.docs ?? [];
-        final workouts = docs.map((doc) => WorkoutModel.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)).toList();
-        final totalMin = workouts.fold<int>(0, (sum, w) => sum + w.durationMins);
+        final workouts = docs
+            .map(
+              (doc) => WorkoutModel.fromFirestore(
+                doc.data() as Map<String, dynamic>,
+                doc.id,
+              ),
+            )
+            .toList();
+        final totalMin = workouts.fold<int>(
+          0,
+          (total, w) => total + w.durationMins,
+        );
         return Column(
           children: [
             if (workouts.isNotEmpty)
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  color: AppColors.navy.withOpacity(0.1),
+                  color: AppColors.navy.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -355,7 +408,10 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
                           SizedBox(height: 12),
                           Text(
                             'No workouts logged yet',
-                            style: TextStyle(color: AppColors.muted, fontSize: 16),
+                            style: TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 16,
+                            ),
                           ),
                         ],
                       ),
@@ -381,7 +437,7 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -393,10 +449,12 @@ class _TrainingScreenState extends State<TrainingScreen> with SingleTickerProvid
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AppColors.navy.withOpacity(0.1),
+            color: AppColors.navy.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Center(child: Text(icon, style: const TextStyle(fontSize: 22))),
+          child: Center(
+            child: Text(icon, style: const TextStyle(fontSize: 22)),
+          ),
         ),
         title: Text(
           workout.label ?? workout.type,

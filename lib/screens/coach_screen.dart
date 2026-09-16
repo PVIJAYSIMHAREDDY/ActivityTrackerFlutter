@@ -1,3 +1,5 @@
+import 'adaptive_plan_screen.dart';
+import '../widgets/load_error.dart';
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../services/coach_service.dart';
@@ -18,6 +20,7 @@ class _CoachScreenState extends State<CoachScreen> {
   WeeklyPlan? _weeklyPlan;
   String? _progressInsight;
   bool _loading = true;
+  bool _loadFailed = false;
 
   // Tracks which exercise's form tip is expanded
   final Set<int> _expandedExercises = {};
@@ -32,27 +35,41 @@ class _CoachScreenState extends State<CoachScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _loading = true);
-    final stats = await BodyStats.load();
-    DayWorkout? todayWorkout;
-    WeeklyPlan? weeklyPlan;
-    String? insight;
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _loadFailed = false;
+    });
+    try {
+      setState(() => _loading = true);
+      final stats = await BodyStats.load();
+      DayWorkout? todayWorkout;
+      WeeklyPlan? weeklyPlan;
+      String? insight;
 
-    if (stats != null) {
-      todayWorkout = CoachService.getTodayWorkout(stats);
-      final week = CoachService.getCurrentWeek(stats.programStartDate);
-      weeklyPlan = CoachService.getWeeklyPlan(week, stats);
-      insight = CoachService.getProgressInsight(stats);
-    }
+      if (stats != null) {
+        todayWorkout = CoachService.getTodayWorkout(stats);
+        final week = CoachService.getCurrentWeek(stats.programStartDate);
+        weeklyPlan = CoachService.getWeeklyPlan(week, stats);
+        insight = CoachService.getProgressInsight(stats);
+      }
 
-    if (mounted) {
-      setState(() {
-        _stats = stats;
-        _todayWorkout = todayWorkout;
-        _weeklyPlan = weeklyPlan;
-        _progressInsight = insight;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _stats = stats;
+          _todayWorkout = todayWorkout;
+          _weeklyPlan = weeklyPlan;
+          _progressInsight = insight;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadFailed = true;
+        });
+      }
     }
   }
 
@@ -78,7 +95,7 @@ class _CoachScreenState extends State<CoachScreen> {
         name: 'Foundation',
         weekRange: 'Wk 1–12',
         description: 'Foundation Phase: Building base strength and technique',
-        expectedResult: 'Expected: +3–5 kg lean mass',
+        expectedResult: 'Progress varies; adapt to your ability',
       );
     } else if (week <= 24) {
       return const _PhaseInfo(
@@ -86,7 +103,7 @@ class _CoachScreenState extends State<CoachScreen> {
         name: 'Hypertrophy',
         weekRange: 'Wk 13–24',
         description: 'Hypertrophy Phase: Building maximum muscle mass',
-        expectedResult: 'Expected: +4–6 kg muscle',
+        expectedResult: 'Progress varies; adapt to your ability',
       );
     } else if (week <= 36) {
       return const _PhaseInfo(
@@ -94,7 +111,7 @@ class _CoachScreenState extends State<CoachScreen> {
         name: 'Strength',
         weekRange: 'Wk 25–36',
         description: 'Strength Phase: Maximising force output and density',
-        expectedResult: 'Expected: +15–25% strength increase',
+        expectedResult: 'Progress varies; adapt to your ability',
       );
     } else {
       return const _PhaseInfo(
@@ -102,7 +119,7 @@ class _CoachScreenState extends State<CoachScreen> {
         name: 'Peak',
         weekRange: 'Wk 37–52',
         description: 'Peak Phase: Refining physique and performance',
-        expectedResult: 'Expected: Competition-ready conditioning',
+        expectedResult: 'Progress varies; adapt to your ability',
       );
     }
   }
@@ -124,9 +141,14 @@ class _CoachScreenState extends State<CoachScreen> {
         onPressed: _openAiCoach,
         backgroundColor: AppColors.navy,
         icon: const Icon(Icons.psychology, color: Colors.white),
-        label: const Text('Ask AI Coach', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text(
+          'Ask Fitness Coach',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
-      body: _loading
+      body: _loadFailed
+          ? LoadError(onRetry: _loadData)
+          : _loading
           ? const Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.navy),
@@ -136,9 +158,24 @@ class _CoachScreenState extends State<CoachScreen> {
               onRefresh: _loadData,
               color: AppColors.navy,
               child: ListView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
                 children: [
+                  FilledButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdaptivePlanScreen(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text(
+                      'Adaptive diet & workout · Word download',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   if (_stats == null) _buildSetupBanner(),
                   if (_stats != null) ...[
                     _buildPhaseBanner(),
@@ -181,7 +218,7 @@ class _CoachScreenState extends State<CoachScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: AppColors.orange.withOpacity(0.3),
+              color: AppColors.orange.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -192,11 +229,14 @@ class _CoachScreenState extends State<CoachScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.person_add_outlined,
-                  color: Colors.white, size: 24),
+              child: const Icon(
+                Icons.person_add_outlined,
+                color: Colors.white,
+                size: 24,
+              ),
             ),
             const SizedBox(width: 14),
             const Expanded(
@@ -219,8 +259,7 @@ class _CoachScreenState extends State<CoachScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios,
-                color: Colors.white, size: 16),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
           ],
         ),
       ),
@@ -246,7 +285,7 @@ class _CoachScreenState extends State<CoachScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.navy.withOpacity(0.35),
+            color: AppColors.navy.withValues(alpha: 0.35),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -259,10 +298,12 @@ class _CoachScreenState extends State<CoachScreen> {
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -291,8 +332,10 @@ class _CoachScreenState extends State<CoachScreen> {
           const SizedBox(height: 4),
           Text(
             phase.description,
-            style:
-                TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 16),
           // Progress bar
@@ -305,12 +348,16 @@ class _CoachScreenState extends State<CoachScreen> {
                   Text(
                     '${(progress * 100).toStringAsFixed(0)}% complete',
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.8), fontSize: 12),
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 12,
+                    ),
                   ),
                   Text(
                     '$weeksLeft weeks to go',
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.8), fontSize: 12),
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -319,7 +366,7 @@ class _CoachScreenState extends State<CoachScreen> {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: progress,
-                  backgroundColor: Colors.white.withOpacity(0.2),
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
                   valueColor: const AlwaysStoppedAnimation<Color>(Colors.amber),
                   minHeight: 8,
                 ),
@@ -335,7 +382,8 @@ class _CoachScreenState extends State<CoachScreen> {
 
   Widget _buildCoachMessageCard() {
     final workout = _todayWorkout;
-    final message = workout?.coachNote ??
+    final message =
+        workout?.coachNote ??
         'Great work staying consistent! Every session brings you closer to your goal. Focus on form today and give it your best.';
 
     return _sectionCard(
@@ -360,9 +408,9 @@ class _CoachScreenState extends State<CoachScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.navy.withOpacity(0.05),
+              color: AppColors.navy.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.navy.withOpacity(0.12)),
+              border: Border.all(color: AppColors.navy.withValues(alpha: 0.12)),
             ),
             child: Text(
               message,
@@ -390,8 +438,10 @@ class _CoachScreenState extends State<CoachScreen> {
           children: [
             const Icon(Icons.fitness_center, color: AppColors.muted, size: 40),
             const SizedBox(height: 8),
-            const Text("No workout scheduled",
-                style: TextStyle(color: AppColors.muted)),
+            const Text(
+              "No workout scheduled",
+              style: TextStyle(color: AppColors.muted),
+            ),
           ],
         ),
       );
@@ -409,7 +459,7 @@ class _CoachScreenState extends State<CoachScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: typeColor.withOpacity(0.15),
+                  color: typeColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -430,10 +480,12 @@ class _CoachScreenState extends State<CoachScreen> {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: typeColor.withOpacity(0.15),
+                  color: typeColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -452,9 +504,11 @@ class _CoachScreenState extends State<CoachScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppColors.green.withOpacity(0.08),
+                color: AppColors.green.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.green.withOpacity(0.3)),
+                border: Border.all(
+                  color: AppColors.green.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,12 +527,19 @@ class _CoachScreenState extends State<CoachScreen> {
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Row(
                         children: [
-                          const Icon(Icons.check_circle_outline,
-                              size: 14, color: AppColors.green),
+                          const Icon(
+                            Icons.check_circle_outline,
+                            size: 14,
+                            color: AppColors.green,
+                          ),
                           const SizedBox(width: 6),
-                          Text(s,
-                              style: const TextStyle(
-                                  fontSize: 13, color: AppColors.textDark)),
+                          Text(
+                            s,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textDark,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -527,7 +588,7 @@ class _CoachScreenState extends State<CoachScreen> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: AppColors.navy.withOpacity(0.08),
+                      color: AppColors.navy.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Center(
@@ -558,16 +619,16 @@ class _CoachScreenState extends State<CoachScreen> {
                         Text(
                           '${exercise.sets} sets × ${exercise.reps}  ·  Rest ${exercise.rest}',
                           style: const TextStyle(
-                              fontSize: 12, color: AppColors.muted),
+                            fontSize: 12,
+                            color: AppColors.muted,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   if (exercise.tip.isNotEmpty)
                     Icon(
-                      isExpanded
-                          ? Icons.expand_less
-                          : Icons.info_outline,
+                      isExpanded ? Icons.expand_less : Icons.info_outline,
                       color: AppColors.blue,
                       size: 18,
                     ),
@@ -580,15 +641,16 @@ class _CoachScreenState extends State<CoachScreen> {
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
               decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Color(0xFFE2E8F0)),
-                ),
+                border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.tips_and_updates_outlined,
-                      size: 14, color: AppColors.blue),
+                  const Icon(
+                    Icons.tips_and_updates_outlined,
+                    size: 14,
+                    color: AppColors.blue,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -609,12 +671,12 @@ class _CoachScreenState extends State<CoachScreen> {
   }
 
   List<String> _restDaySuggestions() => [
-        '10–15 min light walk or cycling',
-        'Full-body foam rolling (10 min)',
-        'Hip flexor & chest opener stretches',
-        'Neck, shoulder, and lower back mobility',
-        'Hydrate well — aim for 3 litres',
-      ];
+    '10–15 min light walk or cycling',
+    'Full-body foam rolling (10 min)',
+    'Hip flexor & chest opener stretches',
+    'Neck, shoulder, and lower back mobility',
+    'Hydrate well — aim for 3 litres',
+  ];
 
   // ── Nutrition Card ───────────────────────────────────────────────────────────
 
@@ -635,7 +697,9 @@ class _CoachScreenState extends State<CoachScreen> {
         ? ((fat / totalMacroGrams) * 100).round()
         : 25;
 
-    final isRestDay = _todayWorkout?.type == 'rest' || _todayWorkout?.type == 'active_recovery';
+    final isRestDay =
+        _todayWorkout?.type == 'rest' ||
+        _todayWorkout?.type == 'active_recovery';
 
     return _sectionCard(
       child: Column(
@@ -646,11 +710,14 @@ class _CoachScreenState extends State<CoachScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.orange.withOpacity(0.15),
+                  color: AppColors.orange.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.restaurant_outlined,
-                    color: AppColors.orange, size: 20),
+                child: const Icon(
+                  Icons.restaurant_outlined,
+                  color: AppColors.orange,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               const Text(
@@ -671,8 +738,8 @@ class _CoachScreenState extends State<CoachScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppColors.orange.withOpacity(0.12),
-                  AppColors.orange.withOpacity(0.04)
+                  AppColors.orange.withValues(alpha: 0.12),
+                  AppColors.orange.withValues(alpha: 0.04),
                 ],
               ),
               borderRadius: BorderRadius.circular(10),
@@ -782,7 +849,7 @@ class _CoachScreenState extends State<CoachScreen> {
               height: 68,
               child: CircularProgressIndicator(
                 value: pct / 100.0,
-                backgroundColor: color.withOpacity(0.12),
+                backgroundColor: color.withValues(alpha: 0.12),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
                 strokeWidth: 7,
               ),
@@ -827,9 +894,9 @@ class _CoachScreenState extends State<CoachScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -878,11 +945,14 @@ class _CoachScreenState extends State<CoachScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.purple.withOpacity(0.15),
+                  color: AppColors.purple.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.calendar_view_week_outlined,
-                    color: AppColors.purple, size: 20),
+                child: const Icon(
+                  Icons.calendar_view_week_outlined,
+                  color: AppColors.purple,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               const Text(
@@ -915,15 +985,15 @@ class _CoachScreenState extends State<CoachScreen> {
                     margin: const EdgeInsets.symmetric(horizontal: 2),
                     decoration: BoxDecoration(
                       color: isExpanded
-                          ? typeColor.withOpacity(0.2)
+                          ? typeColor.withValues(alpha: 0.2)
                           : (isToday
-                              ? typeColor.withOpacity(0.15)
-                              : Colors.transparent),
+                                ? typeColor.withValues(alpha: 0.15)
+                                : Colors.transparent),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isToday
                             ? typeColor
-                            : typeColor.withOpacity(0.3),
+                            : typeColor.withValues(alpha: 0.3),
                         width: isToday ? 2 : 1,
                       ),
                     ),
@@ -970,66 +1040,75 @@ class _CoachScreenState extends State<CoachScreen> {
             const SizedBox(height: 12),
             const Divider(),
             const SizedBox(height: 8),
-            Builder(builder: (_) {
-              final dayPlan = plan.days.length > _expandedDay!
-                  ? plan.days[_expandedDay!]
-                  : null;
-              if (dayPlan == null) return const SizedBox.shrink();
-              final typeColor = _workoutTypeColor(dayPlan.type);
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        days[_expandedDay!],
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: typeColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          dayPlan.title,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: typeColor,
-                            fontWeight: FontWeight.w600,
+            Builder(
+              builder: (_) {
+                final dayPlan = plan.days.length > _expandedDay!
+                    ? plan.days[_expandedDay!]
+                    : null;
+                if (dayPlan == null) return const SizedBox.shrink();
+                final typeColor = _workoutTypeColor(dayPlan.type);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          days[_expandedDay!],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.textDark,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ...dayPlan.exercises.map(
-                    (e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.arrow_right,
-                              size: 18, color: AppColors.muted),
-                          Expanded(
-                            child: Text(
-                              '${e.name}  ${e.sets}×${e.reps}',
-                              style: const TextStyle(
-                                  fontSize: 13, color: AppColors.textDark),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: typeColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            dayPlan.title,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: typeColor,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...dayPlan.exercises.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.arrow_right,
+                              size: 18,
+                              color: AppColors.muted,
+                            ),
+                            Expanded(
+                              child: Text(
+                                '${e.name}  ${e.sets}×${e.reps}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              );
-            }),
+                  ],
+                );
+              },
+            ),
           ],
         ],
       ),
@@ -1078,23 +1157,29 @@ class _CoachScreenState extends State<CoachScreen> {
 
   Widget _buildProgressInsightCard() {
     final insight = _progressInsight!;
-    final isGain = insight.toLowerCase().contains('gain') ||
+    final isGain =
+        insight.toLowerCase().contains('gain') ||
         insight.toLowerCase().contains('great') ||
         insight.toLowerCase().contains('well');
-    final isLoss = insight.toLowerCase().contains('attention') ||
+    final isLoss =
+        insight.toLowerCase().contains('attention') ||
         insight.toLowerCase().contains('below') ||
         insight.toLowerCase().contains('behind');
     final bgColor = isGain
-        ? AppColors.green.withOpacity(0.08)
+        ? AppColors.green.withValues(alpha: 0.08)
         : isLoss
-            ? AppColors.orange.withOpacity(0.08)
-            : AppColors.blue.withOpacity(0.08);
+        ? AppColors.orange.withValues(alpha: 0.08)
+        : AppColors.blue.withValues(alpha: 0.08);
     final borderColor = isGain
-        ? AppColors.green.withOpacity(0.3)
+        ? AppColors.green.withValues(alpha: 0.3)
         : isLoss
-            ? AppColors.orange.withOpacity(0.3)
-            : AppColors.blue.withOpacity(0.3);
-    final icon = isGain ? '📈' : isLoss ? '📉' : '✅';
+        ? AppColors.orange.withValues(alpha: 0.3)
+        : AppColors.blue.withValues(alpha: 0.3);
+    final icon = isGain
+        ? '📈'
+        : isLoss
+        ? '📉'
+        : '✅';
 
     return Container(
       decoration: BoxDecoration(
@@ -1147,14 +1232,14 @@ class _CoachScreenState extends State<CoachScreen> {
         name: 'Foundation',
         weekRange: 'Wk 1–12',
         description: 'Base strength & technique',
-        expectedResult: 'Expected: +3–5 kg lean mass',
+        expectedResult: 'Progress varies; adapt to your ability',
       ),
       const _PhaseInfo(
         number: 2,
         name: 'Hypertrophy',
         weekRange: 'Wk 13–24',
         description: 'Max muscle building volume',
-        expectedResult: 'Expected: +4–6 kg muscle',
+        expectedResult: 'Progress varies; adapt to your ability',
       ),
       const _PhaseInfo(
         number: 3,
@@ -1181,11 +1266,14 @@ class _CoachScreenState extends State<CoachScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.navy.withOpacity(0.1),
+                  color: AppColors.navy.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.map_outlined,
-                    color: AppColors.navy, size: 20),
+                child: const Icon(
+                  Icons.map_outlined,
+                  color: AppColors.navy,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               const Text(
@@ -1227,8 +1315,8 @@ class _CoachScreenState extends State<CoachScreen> {
             height: 36,
             decoration: BoxDecoration(
               color: isActive
-                  ? Colors.white.withOpacity(0.2)
-                  : AppColors.navy.withOpacity(0.1),
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : AppColors.navy.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -1262,16 +1350,16 @@ class _CoachScreenState extends State<CoachScreen> {
                       phase.weekRange,
                       style: TextStyle(
                         fontSize: 11,
-                        color: isActive
-                            ? Colors.white70
-                            : AppColors.muted,
+                        color: isActive ? Colors.white70 : AppColors.muted,
                       ),
                     ),
                     if (isActive) ...[
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.amber,
                           borderRadius: BorderRadius.circular(8),
@@ -1334,7 +1422,8 @@ class _CoachScreenState extends State<CoachScreen> {
       _SupplementInfo(
         name: 'Vitamin D3',
         dose: '2000 IU/day',
-        note: 'Supports testosterone, immunity, and bone health. Most people are deficient.',
+        note:
+            'Supports testosterone, immunity, and bone health. Most people are deficient.',
         icon: '☀️',
         color: AppColors.orange,
       ),
@@ -1363,11 +1452,14 @@ class _CoachScreenState extends State<CoachScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.green.withOpacity(0.15),
+                  color: AppColors.green.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.science_outlined,
-                    color: AppColors.green, size: 20),
+                child: const Icon(
+                  Icons.science_outlined,
+                  color: AppColors.green,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -1384,8 +1476,7 @@ class _CoachScreenState extends State<CoachScreen> {
                     ),
                     Text(
                       'Optional but well-researched',
-                      style:
-                          TextStyle(fontSize: 11, color: AppColors.muted),
+                      style: TextStyle(fontSize: 11, color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -1404,9 +1495,9 @@ class _CoachScreenState extends State<CoachScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: s.color.withOpacity(0.05),
+        color: s.color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: s.color.withOpacity(0.2)),
+        border: Border.all(color: s.color.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1431,9 +1522,11 @@ class _CoachScreenState extends State<CoachScreen> {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2),
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        color: s.color.withOpacity(0.1),
+                        color: s.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -1451,7 +1544,10 @@ class _CoachScreenState extends State<CoachScreen> {
                 Text(
                   s.note,
                   style: const TextStyle(
-                      fontSize: 12, color: AppColors.muted, height: 1.4),
+                    fontSize: 12,
+                    color: AppColors.muted,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -1470,7 +1566,7 @@ class _CoachScreenState extends State<CoachScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),

@@ -3,11 +3,7 @@ class MacroGoals {
   final double carbs;
   final double fat;
 
-  MacroGoals({
-    required this.protein,
-    required this.carbs,
-    required this.fat,
-  });
+  MacroGoals({required this.protein, required this.carbs, required this.fat});
 
   factory MacroGoals.fromJson(Map<String, dynamic> json) {
     return MacroGoals(
@@ -23,11 +19,7 @@ class Macros {
   final double carbs;
   final double fat;
 
-  Macros({
-    required this.protein,
-    required this.carbs,
-    required this.fat,
-  });
+  Macros({required this.protein, required this.carbs, required this.fat});
 
   factory Macros.fromJson(Map<String, dynamic> json) {
     return Macros(

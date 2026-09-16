@@ -194,14 +194,16 @@ class CoachService {
           sets: '3 sets',
           reps: '12-15 reps',
           rest: '90 sec',
-          tip: 'Hip hinge initiated, bar stays close to shins, neutral spine throughout.',
+          tip:
+              'Hip hinge initiated, bar stays close to shins, neutral spine throughout.',
         ),
         Exercise(
           name: 'Barbell Bench Press',
           sets: '3 sets',
           reps: '12-15 reps',
           rest: '90 sec',
-          tip: 'Retract shoulder blades and lower the bar to mid-chest with control.',
+          tip:
+              'Retract shoulder blades and lower the bar to mid-chest with control.',
         ),
         Exercise(
           name: 'Overhead Press',
@@ -222,7 +224,8 @@ class CoachService {
           sets: '3 sets',
           reps: '8-12 reps',
           rest: '90 sec',
-          tip: 'Start from a dead hang, initiate with shoulder depression before pulling.',
+          tip:
+              'Start from a dead hang, initiate with shoulder depression before pulling.',
         ),
         Exercise(
           name: 'Plank',
@@ -245,7 +248,8 @@ class CoachService {
           sets: '1 session',
           reps: '30-40 min at 60-70% max HR',
           rest: 'N/A',
-          tip: 'Maintain a conversational pace — you should be able to speak in sentences.',
+          tip:
+              'Maintain a conversational pace — you should be able to speak in sentences.',
         ),
       ],
       coachNote:
@@ -269,7 +273,8 @@ class CoachService {
           sets: '1 session',
           reps: '20-30 min',
           rest: 'N/A',
-          tip: 'Focus on breathing and joint range of motion — no intensity needed.',
+          tip:
+              'Focus on breathing and joint range of motion — no intensity needed.',
         ),
       ],
       coachNote:
@@ -320,14 +325,16 @@ class CoachService {
           sets: '4 sets',
           reps: '8-12 reps',
           rest: '90 sec',
-          tip: 'Set bench to 30-45 degrees; fully stretch the chest at the bottom.',
+          tip:
+              'Set bench to 30-45 degrees; fully stretch the chest at the bottom.',
         ),
         Exercise(
           name: 'Cable Fly',
           sets: '3 sets',
           reps: '12-15 reps',
           rest: '60 sec',
-          tip: 'Keep a slight elbow bend and focus on the chest squeeze at the midline.',
+          tip:
+              'Keep a slight elbow bend and focus on the chest squeeze at the midline.',
         ),
         Exercise(
           name: 'Overhead Press',
@@ -341,7 +348,8 @@ class CoachService {
           sets: '4 sets',
           reps: '12-15 reps',
           rest: '60 sec',
-          tip: 'Lead with your elbows and keep a slight forward lean to target medial delts.',
+          tip:
+              'Lead with your elbows and keep a slight forward lean to target medial delts.',
         ),
         Exercise(
           name: 'Tricep Pushdown (Cable)',
@@ -351,7 +359,8 @@ class CoachService {
           tip: 'Lock elbows at your sides and fully extend on every rep.',
         ),
       ],
-      coachNote: 'Week $week — Push day. Progressive overload is king: add weight when you hit the top of the rep range for all sets.',
+      coachNote:
+          'Week $week — Push day. Progressive overload is king: add weight when you hit the top of the rep range for all sets.',
     );
 
     final pull = DayWorkout(
@@ -363,7 +372,8 @@ class CoachService {
           sets: '4 sets',
           reps: '8-10 reps',
           rest: '2 min',
-          tip: 'Build tension before you pull — think "leg press the floor away".',
+          tip:
+              'Build tension before you pull — think "leg press the floor away".',
         ),
         Exercise(
           name: 'Pull-up / Weighted Pull-up',
@@ -384,7 +394,8 @@ class CoachService {
           sets: '3 sets',
           reps: '15-20 reps',
           rest: '60 sec',
-          tip: 'Pull to eye level with external rotation — great for shoulder health.',
+          tip:
+              'Pull to eye level with external rotation — great for shoulder health.',
         ),
         Exercise(
           name: 'Barbell Bicep Curl',
@@ -398,10 +409,12 @@ class CoachService {
           sets: '3 sets',
           reps: '12-15 reps',
           rest: '60 sec',
-          tip: 'Neutral grip targets the brachialis and brachioradialis for arm thickness.',
+          tip:
+              'Neutral grip targets the brachialis and brachioradialis for arm thickness.',
         ),
       ],
-      coachNote: 'Week $week — Pull day. Focus on the mind-muscle connection. Feel every rep in the target muscle.',
+      coachNote:
+          'Week $week — Pull day. Focus on the mind-muscle connection. Feel every rep in the target muscle.',
     );
 
     final legs = DayWorkout(
@@ -420,21 +433,24 @@ class CoachService {
           sets: '4 sets',
           reps: '10-12 reps',
           rest: '90 sec',
-          tip: 'Feet shoulder-width, lower until quads are parallel to the sled.',
+          tip:
+              'Feet shoulder-width, lower until quads are parallel to the sled.',
         ),
         Exercise(
           name: 'Romanian Deadlift',
           sets: '4 sets',
           reps: '10-12 reps',
           rest: '90 sec',
-          tip: 'Hinge until you feel a stretch in the hamstrings — not a squat.',
+          tip:
+              'Hinge until you feel a stretch in the hamstrings — not a squat.',
         ),
         Exercise(
           name: 'Lying Leg Curl',
           sets: '3 sets',
           reps: '12-15 reps',
           rest: '60 sec',
-          tip: 'Control the eccentric phase fully — resist the weight on the way down.',
+          tip:
+              'Control the eccentric phase fully — resist the weight on the way down.',
         ),
         Exercise(
           name: 'Standing Calf Raise',
@@ -448,10 +464,12 @@ class CoachService {
           sets: '3 sets',
           reps: '15-20 reps',
           rest: '60 sec',
-          tip: 'Great quad isolation finisher — squeeze hard at full extension.',
+          tip:
+              'Great quad isolation finisher — squeeze hard at full extension.',
         ),
       ],
-      coachNote: 'Week $week — Leg day. Leg training is where champions are made. Embrace the challenge.',
+      coachNote:
+          'Week $week — Leg day. Leg training is where champions are made. Embrace the challenge.',
     );
 
     final rest = DayWorkout(
@@ -506,21 +524,24 @@ class CoachService {
           sets: '4 sets',
           reps: '6 reps',
           rest: '2 min',
-          tip: 'Tight core, glutes engaged — press in a vertical line over your base.',
+          tip:
+              'Tight core, glutes engaged — press in a vertical line over your base.',
         ),
         Exercise(
           name: 'Weighted Pull-up',
           sets: '4 sets',
           reps: '6 reps',
           rest: '2 min',
-          tip: 'Add a belt or hold a dumbbell between your legs; full range of motion.',
+          tip:
+              'Add a belt or hold a dumbbell between your legs; full range of motion.',
         ),
         Exercise(
           name: 'Barbell Row',
           sets: '4 sets',
           reps: '6 reps',
           rest: '2 min',
-          tip: 'Keep the lower back flat, pull bar into lower chest/upper abdomen.',
+          tip:
+              'Keep the lower back flat, pull bar into lower chest/upper abdomen.',
         ),
       ],
       coachNote:
@@ -543,7 +564,8 @@ class CoachService {
           sets: '4 sets',
           reps: '8 reps',
           rest: '90 sec',
-          tip: 'Lean forward slightly for chest emphasis, stay upright for triceps.',
+          tip:
+              'Lean forward slightly for chest emphasis, stay upright for triceps.',
         ),
         Exercise(
           name: 'Seated Cable Row',
@@ -573,14 +595,16 @@ class CoachService {
           sets: '5 sets',
           reps: '5 reps',
           rest: '3 min',
-          tip: 'Brace, squat below parallel, drive knees out throughout the lift.',
+          tip:
+              'Brace, squat below parallel, drive knees out throughout the lift.',
         ),
         Exercise(
           name: 'Romanian Deadlift',
           sets: '4 sets',
           reps: '6 reps',
           rest: '2 min',
-          tip: 'Load the hamstrings under tension — feel the stretch before reversing.',
+          tip:
+              'Load the hamstrings under tension — feel the stretch before reversing.',
         ),
         Exercise(
           name: 'Leg Press',
@@ -603,21 +627,24 @@ class CoachService {
           sets: '4 sets',
           reps: '6 reps',
           rest: '2 min',
-          tip: 'Keep elbows high to maintain an upright torso throughout the squat.',
+          tip:
+              'Keep elbows high to maintain an upright torso throughout the squat.',
         ),
         Exercise(
           name: 'Hack Squat',
           sets: '4 sets',
           reps: '8 reps',
           rest: '90 sec',
-          tip: 'Feet shoulder-width; emphasise a deep range of motion for quad sweep.',
+          tip:
+              'Feet shoulder-width; emphasise a deep range of motion for quad sweep.',
         ),
         Exercise(
           name: 'Lying Leg Curl',
           sets: '4 sets',
           reps: '10 reps',
           rest: '90 sec',
-          tip: 'Hamstring isolation is important — control both phases of each rep.',
+          tip:
+              'Hamstring isolation is important — control both phases of each rep.',
         ),
       ],
       coachNote:
@@ -641,7 +668,8 @@ class CoachService {
           sets: '1 session',
           reps: '30-40 min',
           rest: 'N/A',
-          tip: 'Keep intensity low — goal is blood flow and mobility, not fitness.',
+          tip:
+              'Keep intensity low — goal is blood flow and mobility, not fitness.',
         ),
       ],
       coachNote:
@@ -685,7 +713,8 @@ class CoachService {
           sets: '4 sets',
           reps: '6-8 reps (drop: -20%, 10-12 reps)',
           rest: '2 min',
-          tip: 'On the last set, immediately drop 20% weight and push out extra reps.',
+          tip:
+              'On the last set, immediately drop 20% weight and push out extra reps.',
         ),
         Exercise(
           name: 'Incline Dumbbell Press — superset with Cable Fly',
@@ -706,14 +735,16 @@ class CoachService {
           sets: '3 supersets',
           reps: '15 reps + 10 reps',
           rest: '90 sec',
-          tip: 'Fully exhaust the medial and anterior deltoid for that round shoulder look.',
+          tip:
+              'Fully exhaust the medial and anterior deltoid for that round shoulder look.',
         ),
         Exercise(
           name: 'Tricep Pushdown — superset with Overhead Tricep Extension',
           sets: '3 supersets',
           reps: '12 reps + 12 reps',
           rest: '60 sec',
-          tip: 'Both heads of the triceps hit — lockout completely on every rep.',
+          tip:
+              'Both heads of the triceps hit — lockout completely on every rep.',
         ),
       ],
       coachNote:
@@ -729,21 +760,24 @@ class CoachService {
           sets: '4 sets',
           reps: '4-6 reps',
           rest: '3 min',
-          tip: 'Heaviest lift of the week — warm up carefully and pull with intent.',
+          tip:
+              'Heaviest lift of the week — warm up carefully and pull with intent.',
         ),
         Exercise(
           name: 'Weighted Pull-up — superset with Straight-Arm Pulldown',
           sets: '3 supersets',
           reps: '8 reps + 15 reps',
           rest: '90 sec',
-          tip: 'The straight-arm pulldown pre-exhausts the lat for a greater contraction during pull-ups.',
+          tip:
+              'The straight-arm pulldown pre-exhausts the lat for a greater contraction during pull-ups.',
         ),
         Exercise(
           name: 'Seated Cable Row (+ drop set on final set)',
           sets: '4 sets',
           reps: '8-10 reps (drop: 15 reps)',
           rest: '90 sec',
-          tip: 'Neutral grip; drive elbows back and pinch shoulder blades hard.',
+          tip:
+              'Neutral grip; drive elbows back and pinch shoulder blades hard.',
         ),
         Exercise(
           name: 'Barbell Curl — superset with Hammer Curl',
@@ -787,21 +821,24 @@ class CoachService {
           sets: '3 supersets',
           reps: '10 reps + 15 reps',
           rest: '90 sec',
-          tip: 'Both exercises hit hamstrings from different angles for full development.',
+          tip:
+              'Both exercises hit hamstrings from different angles for full development.',
         ),
         Exercise(
           name: 'Walking Lunge',
           sets: '3 sets',
           reps: '20 steps (10 each leg)',
           rest: '90 sec',
-          tip: 'Long strides for glute emphasis, shorter strides for quad emphasis.',
+          tip:
+              'Long strides for glute emphasis, shorter strides for quad emphasis.',
         ),
         Exercise(
           name: 'Standing Calf Raise (+ drop set on final set)',
           sets: '4 sets',
           reps: '15 reps (drop: 20 reps)',
           rest: '60 sec',
-          tip: 'Calves respond to both volume and stretch — full ROM every rep.',
+          tip:
+              'Calves respond to both volume and stretch — full ROM every rep.',
         ),
       ],
       coachNote:
@@ -855,7 +892,8 @@ class CoachService {
           sets: '1 session',
           reps: '30-45 min',
           rest: 'N/A',
-          tip: 'Focus on hip flexors, thoracic spine, and hamstrings after heavy leg and pull days.',
+          tip:
+              'Focus on hip flexors, thoracic spine, and hamstrings after heavy leg and pull days.',
         ),
       ],
       coachNote:

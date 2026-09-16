@@ -1,3 +1,7 @@
+import 'dart:async';
+import '../models/body_stats_model.dart';
+import '../models/measurement_units.dart';
+import '../widgets/load_error.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme.dart';
@@ -12,7 +16,8 @@ class DietScreen extends StatefulWidget {
   State<DietScreen> createState() => _DietScreenState();
 }
 
-class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateMixin {
+class _DietScreenState extends State<DietScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   DateTime _selectedDate = AppDateUtils.today();
 
@@ -23,17 +28,66 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
   final TextEditingController _carbsController = TextEditingController();
   final TextEditingController _fatController = TextEditingController();
   bool _saving = false;
+  MeasurementUnits _units = const MeasurementUnits();
+  bool _unitsLoaded = false, _unitsFailed = false;
+  StreamSubscription<dynamic>? _unitSubscription;
+  void _listenUnits() {
+    _unitSubscription?.cancel();
+    _unitSubscription = FirestoreService.bodyStatsStream().listen(
+      (snapshot) {
+        if (!mounted) return;
+        final next = snapshot.data() == null
+            ? const MeasurementUnits()
+            : BodyStats.fromJson(snapshot.data()!).units;
+        for (final controller in [
+          _proteinController,
+          _carbsController,
+          _fatController,
+        ]) {
+          final value = double.tryParse(controller.text);
+          if (value != null && value.isFinite && next.ounces != _units.ounces) {
+            controller.text = next
+                .foodValue(_units.foodGrams(value))
+                .toStringAsFixed(4);
+          }
+        }
+        final energy = double.tryParse(_caloriesController.text);
+        if (energy != null &&
+            energy.isFinite &&
+            next.kilojoules != _units.kilojoules) {
+          _caloriesController.text = next
+              .energyValue(_units.energyKcal(energy))
+              .toStringAsFixed(4);
+        }
+        setState(() {
+          _units = next;
+          _unitsLoaded = true;
+          _unitsFailed = false;
+        });
+      },
+      onError: (Object error) {
+        if (mounted) setState(() => _unitsFailed = true);
+      },
+    );
+  }
 
-  static const List<String> _mealTypes = ['breakfast', 'lunch', 'dinner', 'snack'];
+  static const List<String> _mealTypes = [
+    'breakfast',
+    'lunch',
+    'dinner',
+    'snack',
+  ];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _listenUnits();
   }
 
   @override
   void dispose() {
+    _unitSubscription?.cancel();
     _tabController.dispose();
     _nameController.dispose();
     _caloriesController.dispose();
@@ -49,11 +103,29 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
       _showError('Please enter a food name');
       return;
     }
-    final calories = double.tryParse(_caloriesController.text) ?? 0;
-    final protein = double.tryParse(_proteinController.text) ?? 0;
-    final carbs = double.tryParse(_carbsController.text) ?? 0;
-    final fat = double.tryParse(_fatController.text) ?? 0;
+    final calories = _units.energyKcal(
+      double.tryParse(_caloriesController.text) ?? double.nan,
+    );
+    final protein = _units.foodGrams(
+      _proteinController.text.trim().isEmpty
+          ? 0
+          : double.tryParse(_proteinController.text) ?? double.nan,
+    );
+    final carbs = _units.foodGrams(
+      _carbsController.text.trim().isEmpty
+          ? 0
+          : double.tryParse(_carbsController.text) ?? double.nan,
+    );
+    final fat = _units.foodGrams(
+      _fatController.text.trim().isEmpty
+          ? 0
+          : double.tryParse(_fatController.text) ?? double.nan,
+    );
 
+    if ([calories, protein, carbs, fat].any((v) => !v.isFinite || v < 0)) {
+      _showError('Enter valid, non-negative nutrition values.');
+      return;
+    }
     setState(() => _saving = true);
     try {
       final id = DateTime.now().millisecondsSinceEpoch.toString();
@@ -78,7 +150,10 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
         _saving = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Food added!'), backgroundColor: AppColors.green),
+        const SnackBar(
+          content: Text('Food added!'),
+          backgroundColor: AppColors.green,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -108,13 +183,44 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    if (_unitsFailed) return LoadError(onRetry: _listenUnits);
+    if (!_unitsLoaded) return const Center(child: CircularProgressIndicator());
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirestoreService.dietStream(AppDateUtils.formatDate(_selectedDate)),
+        stream: FirestoreService.dietStream(
+          AppDateUtils.formatDate(_selectedDate),
+        ),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Your records could not load. Check your connection and try again.',
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {}),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           final docs = snapshot.data?.docs ?? [];
-          final entries = docs.map((doc) => DietEntryModel.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)).toList();
+          final entries = docs
+              .map(
+                (doc) => DietEntryModel.fromFirestore(
+                  doc.data() as Map<String, dynamic>,
+                  doc.id,
+                ),
+              )
+              .toList();
           final loading = snapshot.connectionState == ConnectionState.waiting;
 
           return Column(
@@ -127,7 +233,10 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
                   indicatorColor: Colors.white,
                   labelColor: Colors.white,
                   unselectedLabelColor: const Color(0xFF8BA3BE),
-                  labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                   tabs: const [
                     Tab(text: 'Add Food'),
                     Tab(text: 'Summary'),
@@ -163,10 +272,18 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
           ),
           Text(
             AppDateUtils.formatDateDisplay(_selectedDate),
-            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+            icon: const Icon(
+              Icons.chevron_right,
+              color: Colors.white,
+              size: 28,
+            ),
             onPressed: () => _changeDate(1),
           ),
         ],
@@ -182,35 +299,64 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
         children: [
           const Text(
             'Meal Type',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navy),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.navy,
+            ),
           ),
           const SizedBox(height: 8),
           _buildMealTypeSelector(),
           const SizedBox(height: 16),
           const Text(
             'Food Name',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navy),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.navy,
+            ),
           ),
           const SizedBox(height: 8),
           TextField(
+            key: const ValueKey('diet-name'),
             controller: _nameController,
             decoration: const InputDecoration(hintText: 'e.g. Chicken Breast'),
           ),
           const SizedBox(height: 16),
           const Text(
             'Nutrition',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navy),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.navy,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _macroInput(_caloriesController, 'Calories', 'kcal')),
+              Expanded(
+                child: _macroInput(
+                  _caloriesController,
+                  'Energy',
+                  _units.energyUnit,
+                ),
+              ),
               const SizedBox(width: 8),
-              Expanded(child: _macroInput(_proteinController, 'Protein', 'g')),
+              Expanded(
+                child: _macroInput(
+                  _proteinController,
+                  'Protein',
+                  _units.foodUnit,
+                ),
+              ),
               const SizedBox(width: 8),
-              Expanded(child: _macroInput(_carbsController, 'Carbs', 'g')),
+              Expanded(
+                child: _macroInput(_carbsController, 'Carbs', _units.foodUnit),
+              ),
               const SizedBox(width: 8),
-              Expanded(child: _macroInput(_fatController, 'Fat', 'g')),
+              Expanded(
+                child: _macroInput(_fatController, 'Fat', _units.foodUnit),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -226,22 +372,34 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Text(
                       'Add to Log',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
             ),
           ),
           const SizedBox(height: 24),
           const Text(
             "Today's Log",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navy),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.navy,
+            ),
           ),
           const SizedBox(height: 8),
           if (loading)
-            const Center(child: CircularProgressIndicator(color: AppColors.navy))
+            const Center(
+              child: CircularProgressIndicator(color: AppColors.navy),
+            )
           else if (entries.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -292,9 +450,13 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppColors.muted),
+        ),
         const SizedBox(height: 4),
         TextField(
+          key: ValueKey('diet-$label'),
           controller: ctrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
@@ -316,7 +478,7 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 3,
             offset: const Offset(0, 1),
           ),
@@ -330,10 +492,13 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
               children: [
                 Text(
                   entry.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
                 Text(
-                  '${_capitalize(entry.mealType)} · ${entry.calories.toStringAsFixed(0)} kcal · P:${entry.protein.toStringAsFixed(0)}g C:${entry.carbs.toStringAsFixed(0)}g F:${entry.fat.toStringAsFixed(0)}g',
+                  '${_capitalize(entry.mealType)} · ${_units.energy(entry.calories)} · P:${_units.food(entry.protein)} C:${_units.food(entry.carbs)} F:${_units.food(entry.fat)}',
                   style: const TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
               ],
@@ -352,7 +517,9 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
 
   Widget _buildSummaryTab(List<DietEntryModel> entries, bool loading) {
     if (loading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.navy));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.navy),
+      );
     }
     final totalCalories = entries.fold<double>(0, (s, e) => s + e.calories);
     final totalProtein = entries.fold<double>(0, (s, e) => s + e.protein);
@@ -389,15 +556,15 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
       child: Column(
         children: [
           Text(
-            totalCalories.toStringAsFixed(0),
+            _units.energyValue(totalCalories).toStringAsFixed(0),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 48,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const Text(
-            'calories today',
+          Text(
+            '${_units.energyUnit} today',
             style: TextStyle(color: Color(0xFF8BA3BE), fontSize: 14),
           ),
         ],
@@ -405,10 +572,16 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildMacroChips(double totalProtein, double totalCarbs, double totalFat) {
+  Widget _buildMacroChips(
+    double totalProtein,
+    double totalCarbs,
+    double totalFat,
+  ) {
     return Row(
       children: [
-        Expanded(child: _macroChip('Protein', totalProtein, 'g', AppColors.blue)),
+        Expanded(
+          child: _macroChip('Protein', totalProtein, 'g', AppColors.blue),
+        ),
         const SizedBox(width: 10),
         Expanded(child: _macroChip('Carbs', totalCarbs, 'g', AppColors.orange)),
         const SizedBox(width: 10),
@@ -428,14 +601,17 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
       child: Column(
         children: [
           Text(
-            '${value.toStringAsFixed(1)}$unit',
+            _units.food(value),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppColors.muted),
+          ),
         ],
       ),
     );
@@ -444,7 +620,10 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
   Widget _buildMealBreakdown(Map<String, List<DietEntryModel>> byMeal) {
     if (byMeal.isEmpty) {
       return const Center(
-        child: Text('No food logged yet', style: TextStyle(color: AppColors.muted)),
+        child: Text(
+          'No food logged yet',
+          style: TextStyle(color: AppColors.muted),
+        ),
       );
     }
     final mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -462,7 +641,7 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 4,
                 offset: const Offset(0, 1),
               ),
@@ -471,7 +650,10 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -484,31 +666,42 @@ class _DietScreenState extends State<DietScreen> with SingleTickerProviderStateM
                       ),
                     ),
                     Text(
-                      '${totalKcal.toStringAsFixed(0)} kcal',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                      _units.energy(totalKcal),
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
               ),
               const Divider(height: 1),
-              ...items.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            e.name,
-                            style: const TextStyle(fontSize: 14),
-                          ),
+              ...items.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          e.name,
+                          style: const TextStyle(fontSize: 14),
                         ),
-                        Text(
-                          '${e.calories.toStringAsFixed(0)} kcal',
-                          style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                      ),
+                      Text(
+                        _units.energy(e.calories),
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 13,
                         ),
-                      ],
-                    ),
-                  )),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         );

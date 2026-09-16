@@ -1,6 +1,6 @@
 # Activity Tracker
 
-A full-featured Flutter fitness and lifestyle tracking app with 7 feature tabs, Firebase backend, and an AI-powered coach.
+A full-featured Flutter fitness and lifestyle tracking app with 7 feature tabs, Firebase backend, and a source-informed fitness coach.
 
 ## Screenshots
 
@@ -22,7 +22,7 @@ A full-featured Flutter fitness and lifestyle tracking app with 7 feature tabs, 
 | **Habits** | Build streaks with daily habit tracking; progress bar and streak counter per habit |
 | **Tasks** | Date-based task list with High/Medium/Low priority; check off and delete tasks |
 | **Goals** | Track goals by category (Fitness, Personal, Finance) with progress increments |
-| **Coach** | ISSA-certified AI coach chat; download personalised Workout, Nutrition, or Full Plan as PDF |
+| **Coach** | Assessment-based coaching, full-text search across six supplied ISSA books, page citations, and Word/PDF plans |
 
 ## Tech Stack
 
@@ -130,3 +130,23 @@ Navigate to **Profile → Load Sample Data (Testing)** to seed tasks, habits, wo
 ## License
 
 MIT
+
+## ISSA coaching library
+
+The coaching workspace combines a body profile, weekly recovery assessment,
+training schedule, portioned meal plan, habit action, and Word/PDF exports.
+The learning library searches the extracted text of all six supplied ISSA books;
+chat shows matching source excerpts with links to their PDF page numbers.
+It uses local retrieval and deterministic coaching rules, not a generative AI model.
+
+Before building from a fresh checkout, generate the private source asset:
+
+```bash
+python3 tools/import_issa.py /path/to/your/six/issa/pdfs
+```
+
+Requires Poppler `pdftotext`. Source hashes must match the supplied-source manifest.
+The generated textbook text is excluded from Git. The local build contains that
+text; use it as a private study build unless you have permission to redistribute
+the source material. See `docs/issa-library-coverage.json` for page coverage and
+`docs/COACHING_DESIGN.md` for behavior and limitations.

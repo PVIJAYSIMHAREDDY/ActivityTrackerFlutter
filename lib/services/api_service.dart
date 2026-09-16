@@ -8,12 +8,12 @@ import '../models/diet_entry_model.dart';
 import '../models/goal_model.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.4.26:5050';
+  static const String baseUrl = String.fromEnvironment('LEGACY_API_URL');
 
   static Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
   // ─── Summary ───────────────────────────────────────────────────────────────
 
@@ -40,7 +40,11 @@ class ApiService {
     throw Exception('Failed to load tasks: ${response.statusCode}');
   }
 
-  static Future<TaskModel> createTask(String text, String priority, String date) async {
+  static Future<TaskModel> createTask(
+    String text,
+    String priority,
+    String date,
+  ) async {
     final response = await http
         .post(
           Uri.parse('$baseUrl/api/tasks'),

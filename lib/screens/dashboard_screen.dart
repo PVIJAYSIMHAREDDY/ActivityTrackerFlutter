@@ -1,3 +1,5 @@
+import 'dart:async';
+import '../models/measurement_units.dart';
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../services/firestore_service.dart';
@@ -15,6 +17,8 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   DateTime _selectedDate = AppDateUtils.today();
   SummaryModel? _summary;
+  MeasurementUnits _units = const MeasurementUnits();
+  StreamSubscription<dynamic>? _unitSubscription;
   bool _loading = false;
   String? _error;
 
@@ -22,39 +26,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _fetchSummary();
+    _unitSubscription = FirestoreService.bodyStatsStream().listen(
+      (snapshot) {
+        if (!mounted) return;
+        setState(
+          () => _units = snapshot.data() == null
+              ? const MeasurementUnits()
+              : BodyStats.fromJson(snapshot.data()!).units,
+        );
+      },
+      onError: (Object error) {
+        if (mounted) {
+          setState(
+            () => _error =
+                'Measurement preferences could not load. Please retry.',
+          );
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _unitSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchSummary() async {
     if (!mounted) return;
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final date = AppDateUtils.formatDate(_selectedDate);
 
-      final taskSnap    = await FirestoreService.tasksStream(date).first;
-      final habitSnap   = await FirestoreService.habitsStream().first;
-      final dietSnap    = await FirestoreService.dietStream(date).first;
+      final taskSnap = await FirestoreService.tasksStream(date).first;
+      final habitSnap = await FirestoreService.habitsStream().first;
+      final dietSnap = await FirestoreService.dietStream(date).first;
       final workoutSnap = await FirestoreService.workoutsStream(date).first;
-      final bodyStats   = await BodyStats.load();
+      final bodyStats = await BodyStats.load();
 
-      final tasks      = taskSnap.docs;
-      final tasksDone  = tasks.where((d) => (d.data() as Map)['done'] == true).length;
-      final habits     = habitSnap.docs;
+      final tasks = taskSnap.docs;
+      final tasksDone = tasks
+          .where((d) => (d.data() as Map)['done'] == true)
+          .length;
+      final habits = habitSnap.docs;
       final habitsDone = habits.where((d) {
         final data = d.data() as Map;
-        return data['lastDoneDate'] == date;
+        return data['lastDoneDate'] == date ||
+            (data['completedDates'] as List? ?? []).contains(date);
       }).length;
 
       double calories = 0, protein = 0, carbs = 0, fat = 0;
       for (final d in dietSnap.docs) {
         final data = d.data() as Map;
         calories += (data['calories'] ?? 0).toDouble();
-        protein  += (data['protein']  ?? 0).toDouble();
-        carbs    += (data['carbs']    ?? 0).toDouble();
-        fat      += (data['fat']      ?? 0).toDouble();
+        protein += (data['protein'] ?? 0).toDouble();
+        carbs += (data['carbs'] ?? 0).toDouble();
+        fat += (data['fat'] ?? 0).toDouble();
       }
 
       if (!mounted) return;
       setState(() {
+        _units = bodyStats?.units ?? const MeasurementUnits();
         _summary = SummaryModel(
           tasksDone: tasksDone,
           tasksTotal: tasks.length,
@@ -73,7 +108,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _error = e.toString(); _loading = false; });
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
@@ -124,7 +162,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+            icon: const Icon(
+              Icons.chevron_right,
+              color: Colors.white,
+              size: 28,
+            ),
             onPressed: () => _changeDate(1),
           ),
         ],
@@ -155,7 +197,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, color: AppColors.muted, size: 48),
+                  const Icon(
+                    Icons.error_outline,
+                    color: AppColors.muted,
+                    size: 48,
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     'Could not load data. Tap to retry.',
@@ -227,7 +273,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: Icons.restaurant,
           color: AppColors.orange,
           label: 'Calories',
-          value: '${s.calories.toStringAsFixed(0)} kcal',
+          value: _units.energy(s.calories),
         ),
         _buildStatCard(
           icon: Icons.fitness_center,
@@ -251,7 +297,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -265,7 +311,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -283,10 +329,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.muted,
-                ),
+                style: const TextStyle(fontSize: 12, color: AppColors.muted),
               ),
             ],
           ),
@@ -302,7 +345,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -361,11 +404,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             Text(
-              '${value.toStringAsFixed(1)}$unit / ${goal.toStringAsFixed(0)}$unit',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.muted,
-              ),
+              '${_units.food(value)} / ${_units.food(goal)}',
+              style: const TextStyle(fontSize: 13, color: AppColors.muted),
             ),
           ],
         ),
@@ -374,7 +414,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: progress,
-            backgroundColor: color.withOpacity(0.15),
+            backgroundColor: color.withValues(alpha: 0.15),
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 8,
           ),

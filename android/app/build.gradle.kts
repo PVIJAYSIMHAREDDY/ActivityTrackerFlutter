@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -20,12 +22,15 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    val signingProperties = Properties()
+    val signingFile = rootProject.file("key.properties")
+    if (signingFile.exists()) signingFile.inputStream().use { signingProperties.load(it) }
     signingConfigs {
         create("release") {
-            keyAlias = "activitytracker"
-            keyPassword = "VijayTracker2024!"
-            storeFile = file("../../keystore/release.jks")
-            storePassword = "VijayTracker2024!"
+            keyAlias = signingProperties.getProperty("keyAlias")
+            keyPassword = signingProperties.getProperty("keyPassword")
+            storeFile = signingProperties.getProperty("storeFile")?.let { file(it) }
+            storePassword = signingProperties.getProperty("storePassword")
         }
     }
 
@@ -33,8 +38,8 @@ android {
         applicationId = "com.vijaysimhareddy.activitytracker"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     buildTypes {
@@ -53,6 +58,5 @@ flutter {
 
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
-    implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
 }

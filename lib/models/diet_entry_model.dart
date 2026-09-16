@@ -32,7 +32,10 @@ class DietEntryModel {
     );
   }
 
-  factory DietEntryModel.fromFirestore(Map<String, dynamic> data, String docId) {
+  factory DietEntryModel.fromFirestore(
+    Map<String, dynamic> data,
+    String docId,
+  ) {
     return DietEntryModel(
       id: docId,
       name: data['name'] ?? '',

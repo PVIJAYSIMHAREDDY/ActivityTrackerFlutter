@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../main.dart';
+import 'privacy_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,66 +15,49 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color _bg = Color(0xFFF0F4F8);
 
   bool _loadingGoogle = false;
-  bool _loadingFacebook = false;
-
-  void _goToApp() {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainNavigator()),
-    );
-  }
+  bool _loadingGuest = false;
 
   Future<void> _handleGoogle() async {
     setState(() => _loadingGoogle = true);
     try {
-      final user = await AuthService.signInWithGoogle();
-      if (user != null) _goToApp();
+      await AuthService.signInWithGoogle();
     } catch (e) {
-      final msg = e.toString();
-      if (msg.contains('ApiException: 10') || msg.contains('DEVELOPER_ERROR')) {
-        _showError('SHA-1 certificate mismatch. Check Firebase Console → Android app settings.');
-      } else if (msg.contains('network') || msg.contains('NETWORK')) {
-        _showError('No internet connection. Please check your network.');
-      } else if (msg.contains('no tokens')) {
-        _showError('Google token error. Ensure SHA-1 is registered in Firebase Console.');
-      } else {
-        _showError('Google Sign-In failed: ${msg.length > 80 ? msg.substring(0, 80) : msg}');
-      }
+      _showError(
+        'Sign-in could not complete. Check your connection and try again.',
+      );
     } finally {
       if (mounted) setState(() => _loadingGoogle = false);
     }
   }
 
-  Future<void> _handleFacebook() async {
-    setState(() => _loadingFacebook = true);
-    try {
-      final user = await AuthService.signInWithFacebook();
-      if (user != null) _goToApp();
-    } catch (e) {
-      _showError('Facebook Sign-In failed. Check your App ID configuration.');
-    } finally {
-      if (mounted) setState(() => _loadingFacebook = false);
-    }
-  }
-
   Future<void> _handleGuest() async {
-    await AuthService.continueAsGuest();
-    _goToApp();
+    setState(() => _loadingGuest = true);
+    try {
+      await AuthService.continueAsGuest();
+    } catch (_) {
+      _showError(
+        'Guest sign-in could not complete. Check your connection and try again.',
+      );
+    } finally {
+      if (mounted) setState(() => _loadingGuest = false);
+    }
   }
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: Colors.redAccent,
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 4),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = _loadingGoogle || _loadingFacebook;
+    final isLoading = _loadingGoogle || _loadingGuest;
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
@@ -97,14 +80,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: _navy.withOpacity(0.35),
+                        color: _navy.withValues(alpha: 0.35),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.fitness_center,
-                      color: Colors.white, size: 52),
+                  child: const Icon(
+                    Icons.fitness_center,
+                    color: Colors.white,
+                    size: 52,
+                  ),
                 ),
                 const SizedBox(height: 28),
 
@@ -161,77 +147,55 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 24,
                         height: 24,
                         alignment: Alignment.center,
-                        child: const Text('G',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFEA4335),
-                            )),
+                        child: const Text(
+                          'G',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFEA4335),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
-                      const Text('Continue with Google',
+                      const Flexible(
+                        child: Text(
+                          'Continue with Google',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: Color(0xFF3C4043),
-                          )),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
 
-                // Facebook button
-                _AuthButton(
-                  loading: _loadingFacebook,
-                  disabled: isLoading,
-                  onTap: _handleFacebook,
-                  color: const Color(0xFF1877F2),
-                  borderColor: const Color(0xFF1877F2),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        alignment: Alignment.center,
-                        child: const Text('f',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              fontFamily: 'serif',
-                            )),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text('Continue with Facebook',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          )),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
                 // Divider
-                Row(children: [
-                  Expanded(child: Divider(color: Colors.grey.shade300)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('or',
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.grey.shade300)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'or',
                         style: TextStyle(
-                            color: Colors.grey.shade400, fontSize: 13)),
-                  ),
-                  Expanded(child: Divider(color: Colors.grey.shade300)),
-                ]),
+                          color: Colors.grey.shade400,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: Colors.grey.shade300)),
+                  ],
+                ),
                 const SizedBox(height: 16),
 
                 // Guest / skip
                 GestureDetector(
                   onTap: isLoading ? null : _handleGuest,
                   child: Text(
-                    'Continue without account →',
+                    _loadingGuest ? 'Connecting…' : 'Continue as guest →',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.blueGrey.shade400,
@@ -239,12 +203,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 32),
-
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+                  ),
+                  child: const Text('Privacy & health information'),
+                ),
+                const SizedBox(height: 16),
                 Text(
-                  'By continuing you agree to our Terms & Privacy Policy',
+                  'For adults 18 and over.',
+                  style: TextStyle(color: Colors.blueGrey.shade400),
+                ),
+                Text(
+                  'Guest data is tied to this browser or device. Link Google in Profile to keep it across devices.',
                   style: TextStyle(
-                      fontSize: 11, color: Colors.blueGrey.shade300),
+                    fontSize: 11,
+                    color: Colors.blueGrey.shade300,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -269,16 +246,20 @@ class _Pill extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 4,
-              offset: const Offset(0, 2))
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
-      child: Text(label,
-          style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1E3A5F))),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1E3A5F),
+        ),
+      ),
     );
   }
 }
@@ -316,9 +297,10 @@ class _AuthButton extends StatelessWidget {
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3))
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
             ],
           ),
           alignment: Alignment.center,
@@ -329,9 +311,10 @@ class _AuthButton extends StatelessWidget {
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                        color == Colors.white
-                            ? const Color(0xFF1E3A5F)
-                            : Colors.white),
+                      color == Colors.white
+                          ? const Color(0xFF1E3A5F)
+                          : Colors.white,
+                    ),
                   ),
                 )
               : child,

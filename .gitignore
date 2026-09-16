@@ -44,5 +44,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+/android/key.properties
+/release/
+
 # Signing keys
 keystore/
+
+# Private source text generated from supplied textbooks.
+assets/coaching/issa_library.json

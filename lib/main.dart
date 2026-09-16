@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'services/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fa;
@@ -11,25 +11,53 @@ import 'screens/habits_screen.dart';
 import 'screens/training_screen.dart';
 import 'screens/diet_screen.dart';
 import 'screens/goals_screen.dart';
-import 'screens/coach_screen.dart';
+import 'screens/adaptive_plan_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/login_screen.dart';
-import 'services/auth_service.dart';
 
-// localhost works via adb reverse port forwarding
-const _emulatorHost = 'localhost';
-
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  if (kDebugMode) {
-    // Point to local Firebase emulators so tests don't need real Play Services
-    await fa.FirebaseAuth.instance.useAuthEmulator(_emulatorHost, 9099);
-    FirebaseFirestore.instance.useFirestoreEmulator(_emulatorHost, 8080);
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    if (const bool.fromEnvironment('USE_FIREBASE_EMULATORS')) {
+      const host = String.fromEnvironment(
+        'FIREBASE_EMULATOR_HOST',
+        defaultValue: 'localhost',
+      );
+      await fa.FirebaseAuth.instance.useAuthEmulator(host, 9099);
+      FirebaseFirestore.instanceFor(
+        app: Firebase.app(),
+        databaseId: AppConfig.databaseId,
+      ).useFirestoreEmulator(host, 8080);
+    }
+    runApp(const ActivityTrackerApp());
+  } catch (error) {
+    debugPrint('Startup failed: $error');
+    runApp(
+      MaterialApp(
+        theme: AppTheme.theme,
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Activity Tracker could not start. Please check your connection and try again.',
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: main, child: const Text('Try again')),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
-
-  runApp(const ActivityTrackerApp());
 }
 
 class ActivityTrackerApp extends StatelessWidget {
@@ -47,21 +75,9 @@ class ActivityTrackerApp extends StatelessWidget {
           if (authSnap.connectionState == ConnectionState.waiting) {
             return _loadingScaffold;
           }
-          if (authSnap.hasData) {
-            return const MainNavigator();
-          }
-          // No Firebase user — check for guest session
-          return FutureBuilder<bool>(
-            future: _isGuestSession(),
-            builder: (context, guestSnap) {
-              if (guestSnap.connectionState == ConnectionState.waiting) {
-                return _loadingScaffold;
-              }
-              return (guestSnap.data == true)
-                  ? const MainNavigator()
-                  : const LoginScreen();
-            },
-          );
+          return authSnap.hasData
+              ? MainNavigator(key: ValueKey(authSnap.data!.uid))
+              : const LoginScreen();
         },
       ),
     );
@@ -75,11 +91,6 @@ class ActivityTrackerApp extends StatelessWidget {
       ),
     ),
   );
-
-  static Future<bool> _isGuestSession() async {
-    final user = await AuthService.getCurrentUser();
-    return user?.provider == AuthProvider.guest;
-  }
 }
 
 class MainNavigator extends StatefulWidget {
@@ -94,12 +105,16 @@ class _MainNavigatorState extends State<MainNavigator> {
 
   static const _tabs = [
     _TabDef('Dashboard', Icons.dashboard_outlined, Icons.dashboard),
-    _TabDef('Training',  Icons.fitness_center_outlined, Icons.fitness_center),
-    _TabDef('Diet',      Icons.restaurant_outlined, Icons.restaurant),
-    _TabDef('Habits',    Icons.local_fire_department_outlined, Icons.local_fire_department),
-    _TabDef('Tasks',     Icons.check_box_outline_blank, Icons.check_box),
-    _TabDef('Goals',     Icons.emoji_events_outlined, Icons.emoji_events),
-    _TabDef('Coach',     Icons.psychology_outlined, Icons.psychology),
+    _TabDef('Training', Icons.fitness_center_outlined, Icons.fitness_center),
+    _TabDef('Diet', Icons.restaurant_outlined, Icons.restaurant),
+    _TabDef(
+      'Habits',
+      Icons.local_fire_department_outlined,
+      Icons.local_fire_department,
+    ),
+    _TabDef('Tasks', Icons.check_box_outline_blank, Icons.check_box),
+    _TabDef('Goals', Icons.emoji_events_outlined, Icons.emoji_events),
+    _TabDef('Coach', Icons.psychology_outlined, Icons.psychology),
   ];
 
   final List<Widget> _screens = const [
@@ -109,7 +124,7 @@ class _MainNavigatorState extends State<MainNavigator> {
     HabitsScreen(),
     TasksScreen(),
     GoalsScreen(),
-    CoachScreen(),
+    AdaptivePlanScreen(),
   ];
 
   @override
@@ -130,18 +145,55 @@ class _MainNavigatorState extends State<MainNavigator> {
           ),
         ],
       ),
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        items: _tabs
-            .map((t) => BottomNavigationBarItem(
-                  icon: Icon(t.icon),
-                  activeIcon: Icon(t.activeIcon),
-                  label: t.label,
-                ))
-            .toList(),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final content = Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: KeyedSubtree(
+                key: ValueKey(_currentIndex),
+                child: _screens[_currentIndex],
+              ),
+            ),
+          );
+          if (constraints.maxWidth < 800) return content;
+          return Row(
+            children: [
+              NavigationRail(
+                selectedIndex: _currentIndex,
+                onDestinationSelected: (i) => setState(() => _currentIndex = i),
+                labelType: NavigationRailLabelType.all,
+                destinations: _tabs
+                    .map(
+                      (t) => NavigationRailDestination(
+                        icon: Icon(t.icon),
+                        selectedIcon: Icon(t.activeIcon),
+                        label: Text(t.label),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(child: content),
+            ],
+          );
+        },
       ),
+      bottomNavigationBar: MediaQuery.sizeOf(context).width >= 800
+          ? null
+          : BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (i) => setState(() => _currentIndex = i),
+              items: _tabs
+                  .map(
+                    (t) => BottomNavigationBarItem(
+                      icon: Icon(t.icon),
+                      activeIcon: Icon(t.activeIcon),
+                      label: t.label,
+                    ),
+                  )
+                  .toList(),
+            ),
     );
   }
 }

@@ -76,9 +76,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
   }
 
   Future<void> _updateGoalValue(GoalModel goal, double delta) async {
-    final newValue = (goal.currentValue + delta).clamp(0.0, goal.targetValue * 2);
+    final newValue = (goal.currentValue + delta).clamp(
+      0.0,
+      goal.targetValue * 2,
+    );
     try {
-      await FirestoreService.saveGoal(goal.copyWith(currentValue: newValue).toMap());
+      await FirestoreService.saveGoal(
+        goal.copyWith(currentValue: newValue).toMap(),
+      );
     } catch (e) {
       _showError('Failed to update goal');
     }
@@ -91,7 +96,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
         title: const Text('Delete Goal'),
         content: Text('Delete "${goal.title}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete', style: TextStyle(color: AppColors.red)),
@@ -138,6 +146,26 @@ class _GoalsScreenState extends State<GoalsScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirestoreService.goalsStream(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Your records could not load. Check your connection and try again.',
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {}),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           final isLoading = snapshot.connectionState == ConnectionState.waiting;
 
           List<GoalModel> goals = [];
@@ -145,8 +173,12 @@ class _GoalsScreenState extends State<GoalsScreen> {
             final docs = snapshot.data?.docs ?? [];
             try {
               goals = docs
-                  .map((doc) => GoalModel.fromFirestore(
-                      doc.data() as Map<String, dynamic>, doc.id))
+                  .map(
+                    (doc) => GoalModel.fromFirestore(
+                      doc.data() as Map<String, dynamic>,
+                      doc.id,
+                    ),
+                  )
                   .toList();
             } catch (_) {}
           }
@@ -157,10 +189,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 _buildAddButton(),
-                if (_showForm) ...[
-                  const SizedBox(height: 12),
-                  _buildAddForm(),
-                ],
+                if (_showForm) ...[const SizedBox(height: 12), _buildAddForm()],
                 const SizedBox(height: 12),
                 if (isLoading)
                   const Center(
@@ -179,7 +208,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           SizedBox(height: 12),
                           Text(
                             'No goals yet. Add one!',
-                            style: TextStyle(color: AppColors.muted, fontSize: 16),
+                            style: TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 16,
+                            ),
                           ),
                         ],
                       ),
@@ -218,7 +250,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -229,7 +261,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
         children: [
           const Text(
             'New Goal',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navy),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.navy,
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -239,7 +275,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
           const SizedBox(height: 12),
           const Text(
             'Category',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textDark),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textDark,
+            ),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -249,11 +289,15 @@ class _GoalsScreenState extends State<GoalsScreen> {
               final selected = _selectedCategory == cat['key'];
               final color = cat['color'] as Color;
               return GestureDetector(
-                onTap: () => setState(() => _selectedCategory = cat['key'] as String),
+                onTap: () =>
+                    setState(() => _selectedCategory = cat['key'] as String),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: selected ? color : color.withOpacity(0.1),
+                    color: selected ? color : color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: color),
                   ),
@@ -283,8 +327,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     const SizedBox(height: 4),
                     TextField(
                       controller: _targetController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(hintText: '100', isDense: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: '100',
+                        isDense: true,
+                      ),
                     ),
                   ],
                 ),
@@ -301,8 +350,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     const SizedBox(height: 4),
                     TextField(
                       controller: _currentController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(hintText: '0', isDense: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: '0',
+                        isDense: true,
+                      ),
                     ),
                   ],
                 ),
@@ -315,12 +369,17 @@ class _GoalsScreenState extends State<GoalsScreen> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: _saving ? null : _saveGoal,
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.green),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.green,
+                  ),
                   child: _saving
                       ? const SizedBox(
                           height: 18,
                           width: 18,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
                         )
                       : const Text('Save'),
                 ),
@@ -329,7 +388,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () => setState(() => _showForm = false),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.muted),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.muted,
+                  ),
                   child: const Text('Cancel'),
                 ),
               ),
@@ -355,7 +416,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -367,9 +428,12 @@ class _GoalsScreenState extends State<GoalsScreen> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -384,9 +448,12 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 const Spacer(),
                 if (isComplete)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppColors.green.withOpacity(0.15),
+                      color: AppColors.green.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
@@ -417,7 +484,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: progress,
-                      backgroundColor: color.withOpacity(0.15),
+                      backgroundColor: color.withValues(alpha: 0.15),
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                       minHeight: 8,
                     ),
@@ -476,7 +543,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
+          color: color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: color),
         ),

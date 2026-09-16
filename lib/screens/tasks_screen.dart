@@ -58,7 +58,10 @@ class _TasksScreenState extends State<TasksScreen> {
         title: const Text('Delete Task'),
         content: Text('Delete "${task.text}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete', style: TextStyle(color: AppColors.red)),
@@ -110,23 +113,61 @@ class _TasksScreenState extends State<TasksScreen> {
           _buildDateNav(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirestoreService.tasksStream(AppDateUtils.formatDate(_selectedDate)),
+              stream: FirestoreService.tasksStream(
+                AppDateUtils.formatDate(_selectedDate),
+              ),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Your records could not load. Check your connection and try again.',
+                          ),
+                          TextButton(
+                            onPressed: () => setState(() {}),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: AppColors.navy));
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppColors.navy),
+                  );
                 }
                 final docs = snapshot.data?.docs ?? [];
-                final tasks = docs.map((doc) => TaskModel.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)).toList();
+                final tasks = docs
+                    .map(
+                      (doc) => TaskModel.fromFirestore(
+                        doc.data() as Map<String, dynamic>,
+                        doc.id,
+                      ),
+                    )
+                    .toList();
                 if (tasks.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.check_box_outline_blank, color: AppColors.muted, size: 48),
+                        Icon(
+                          Icons.check_box_outline_blank,
+                          color: AppColors.muted,
+                          size: 48,
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           'No tasks for this day',
-                          style: TextStyle(color: AppColors.muted, fontSize: 16),
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 16,
+                          ),
                         ),
                       ],
                     ),
@@ -159,10 +200,18 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
           Text(
             AppDateUtils.formatDateDisplay(_selectedDate),
-            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+            icon: const Icon(
+              Icons.chevron_right,
+              color: Colors.white,
+              size: 28,
+            ),
             onPressed: () => _changeDate(1),
           ),
         ],
@@ -180,14 +229,17 @@ class _TasksScreenState extends State<TasksScreen> {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
           ],
         ),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 4,
+          ),
           leading: GestureDetector(
             onTap: () => _toggleTask(task),
             child: Container(
@@ -220,7 +272,7 @@ class _TasksScreenState extends State<TasksScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _priorityColor(task.priority).withOpacity(0.15),
+                  color: _priorityColor(task.priority).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -235,7 +287,11 @@ class _TasksScreenState extends State<TasksScreen> {
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _deleteTask(task),
-                child: const Icon(Icons.close, color: AppColors.muted, size: 20),
+                child: const Icon(
+                  Icons.close,
+                  color: AppColors.muted,
+                  size: 20,
+                ),
               ),
             ],
           ),
@@ -283,7 +339,10 @@ class _TasksScreenState extends State<TasksScreen> {
                 onPressed: _addTask,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.navy,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
                 child: const Text('Add'),
               ),
@@ -302,7 +361,7 @@ class _TasksScreenState extends State<TasksScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(0.1),
+          color: selected ? color : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: color),
         ),

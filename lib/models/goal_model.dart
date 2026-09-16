@@ -13,7 +13,8 @@ class GoalModel {
     required this.currentValue,
   });
 
-  double get progress => targetValue > 0 ? (currentValue / targetValue).clamp(0.0, 1.0) : 0.0;
+  double get progress =>
+      targetValue > 0 ? (currentValue / targetValue).clamp(0.0, 1.0) : 0.0;
   bool get isComplete => progress >= 1.0;
 
   factory GoalModel.fromJson(Map<String, dynamic> json) {
@@ -21,8 +22,10 @@ class GoalModel {
       id: (json['id'] ?? '').toString(),
       title: json['title'] ?? '',
       category: json['category'] ?? 'personal',
-      targetValue: (json['target_value'] ?? json['targetValue'] ?? 0).toDouble(),
-      currentValue: (json['current_value'] ?? json['currentValue'] ?? 0).toDouble(),
+      targetValue: (json['target_value'] ?? json['targetValue'] ?? 0)
+          .toDouble(),
+      currentValue: (json['current_value'] ?? json['currentValue'] ?? 0)
+          .toDouble(),
     );
   }
 

@@ -27,10 +27,10 @@ class AppDateUtils {
   }
 
   static DateTime addDays(DateTime date, int days) {
-    return date.add(Duration(days: days));
+    return DateTime(date.year, date.month, date.day + days);
   }
 
   static DateTime subtractDays(DateTime date, int days) {
-    return date.subtract(Duration(days: days));
+    return DateTime(date.year, date.month, date.day - days);
   }
 }

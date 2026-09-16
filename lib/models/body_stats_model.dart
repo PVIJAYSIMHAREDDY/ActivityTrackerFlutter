@@ -1,13 +1,11 @@
+import 'measurement_units.dart';
 import '../services/firestore_service.dart';
 
 class WeightEntry {
   final DateTime date;
   final double weightKg;
 
-  const WeightEntry({
-    required this.date,
-    required this.weightKg,
-  });
+  const WeightEntry({required this.date, required this.weightKg});
 
   factory WeightEntry.fromJson(Map<String, dynamic> json) {
     return WeightEntry(
@@ -17,17 +15,19 @@ class WeightEntry {
   }
 
   Map<String, dynamic> toJson() => {
-        'date': date.toIso8601String(),
-        'weightKg': weightKg,
-      };
+    'date': date.toIso8601String(),
+    'weightKg': weightKg,
+  };
 }
 
 class BodyStats {
+  final MeasurementUnits units;
   final double heightCm;
   final double weightKg;
   final int age;
   final String gender; // 'male' or 'female'
-  final String activityLevel; // 'sedentary','light','moderate','active','athlete'
+  final String
+  activityLevel; // 'sedentary','light','moderate','active','athlete'
   final String goal; // 'fat_loss','maintain','muscle_gain','recomp'
   final double bodyFatPercent; // 0 if unknown
   final String phoneNumber;
@@ -35,6 +35,7 @@ class BodyStats {
   final List<WeightEntry> weightHistory; // last 52 weeks
 
   const BodyStats({
+    this.units = const MeasurementUnits(),
     required this.heightCm,
     required this.weightKg,
     required this.age,
@@ -85,7 +86,8 @@ class BodyStats {
 
   /// Total Daily Energy Expenditure = BMR * activity multiplier
   double get tdee {
-    final multiplier = _activityMultipliers[activityLevel.toLowerCase()] ?? 1.375;
+    final multiplier =
+        _activityMultipliers[activityLevel.toLowerCase()] ?? 1.375;
     return bmr * multiplier;
   }
 
@@ -134,6 +136,7 @@ class BodyStats {
   // ---------------------------------------------------------------------------
 
   BodyStats copyWith({
+    MeasurementUnits? units,
     double? heightCm,
     double? weightKg,
     int? age,
@@ -146,6 +149,7 @@ class BodyStats {
     List<WeightEntry>? weightHistory,
   }) {
     return BodyStats(
+      units: units ?? this.units,
       heightCm: heightCm ?? this.heightCm,
       weightKg: weightKg ?? this.weightKg,
       age: age ?? this.age,
@@ -166,6 +170,9 @@ class BodyStats {
   factory BodyStats.fromJson(Map<String, dynamic> json) {
     final historyJson = (json['weightHistory'] as List<dynamic>? ?? []);
     return BodyStats(
+      units: MeasurementUnits.fromMap(
+        Map<String, dynamic>.from(json['units'] as Map? ?? {}),
+      ),
       heightCm: (json['heightCm'] as num?)?.toDouble() ?? 175.0,
       weightKg: (json['weightKg'] as num?)?.toDouble() ?? 75.0,
       age: (json['age'] as num?)?.toInt() ?? 25,
@@ -184,17 +191,18 @@ class BodyStats {
   }
 
   Map<String, dynamic> toJson() => {
-        'heightCm': heightCm,
-        'weightKg': weightKg,
-        'age': age,
-        'gender': gender,
-        'activityLevel': activityLevel,
-        'goal': goal,
-        'bodyFatPercent': bodyFatPercent,
-        'phoneNumber': phoneNumber,
-        'programStartDate': programStartDate.toIso8601String(),
-        'weightHistory': weightHistory.map((e) => e.toJson()).toList(),
-      };
+    'units': units.toMap(),
+    'heightCm': heightCm,
+    'weightKg': weightKg,
+    'age': age,
+    'gender': gender,
+    'activityLevel': activityLevel,
+    'goal': goal,
+    'bodyFatPercent': bodyFatPercent,
+    'phoneNumber': phoneNumber,
+    'programStartDate': programStartDate.toIso8601String(),
+    'weightHistory': weightHistory.map((e) => e.toJson()).toList(),
+  };
 
   // ---------------------------------------------------------------------------
   // Persistence
@@ -202,13 +210,8 @@ class BodyStats {
 
   /// Loads BodyStats from Firestore. Returns null if not found.
   static Future<BodyStats?> load() async {
-    try {
-      final data = await FirestoreService.loadBodyStats();
-      if (data == null) return null;
-      return BodyStats.fromJson(data);
-    } catch (_) {
-      return null;
-    }
+    final data = await FirestoreService.loadBodyStats();
+    return data == null ? null : BodyStats.fromJson(data);
   }
 
   /// Saves this BodyStats to Firestore.
